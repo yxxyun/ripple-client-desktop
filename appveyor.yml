@@ -19,6 +19,8 @@ test_script:
   - npm --version
   # run tests
   - grunt
-
+artifacts:
+#   # Save rippled.exe in the cloud after each build.
+  - path: "build\\packages\\ripple-client.zip"
 # Don't actually build.
 build: off
