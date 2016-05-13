@@ -21,6 +21,6 @@ test_script:
   - grunt
 artifacts:
 #   # Save rippled.exe in the cloud after each build.
-  - path: "build\\packages\\ripple-client.zip"
+  - path: "build\\packages\\"
 # Don't actually build.
 build: off
