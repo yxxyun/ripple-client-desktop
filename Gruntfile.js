@@ -389,7 +389,7 @@ module.exports = function(grunt) {
           version: '0.12.2',
           buildDir: 'build/pkg/nw/releases',
           cacheDir: 'build/pkg/nw/cache',
-          platforms: ['osx32', 'win32', 'linux'],
+          platforms: ['osx', 'win', 'linux'],
           macIcns: 'res/dmg/xrp_ripple_logo.icns'
         },
         src: ['build/bundle/nw-desktop/**/*']
