@@ -1,19 +1,18 @@
 section.col-xs-12.content(ng-controller="SecurityCtrl")
   .row
     div.col-xs-12(ng-show="!loadingAccount && !account.Balance && loadState.account && connected")
-      include ../tabs/banner/unfunded
+      include ../tabs/banner/_unfunded
     .col-sm-4.col-md-3.col-xs-12(ng-show="isUnlocked")
-      include settings/navbar
+      include settings/_navbar
     .col-sm-8.col-md-9.col-xs-12.list(ng-show="isUnlocked")
       .showSecurity(ng-show="settingsPage == 'security'")
         div
           h4(l10n) Security settings
-          .section
+          .section(ng-show="userBlob.data.masterkey")
             .descriptor(l10n) Secret key
-            .row
             label(l10n) Your secret key unlocks access to your account funds. Please write it down and store it
-                |  somewhere private and safe. In the event you lose your password, you can use this secret
-                |  key to recover your funds.
+              |  somewhere private and safe. In the event you lose your password, you can use this secret
+              |  key to recover your funds.
             .row
               .col-xs-9.col-sm-8.col-md-6
                 span.value(ng-show="security.master_seed") {{security.master_seed}}
@@ -21,3 +20,68 @@ section.col-xs-12.content(ng-controller="SecurityCtrl")
               .col-xs-3.col-sm-4.col-md-3
                 a(href="", ng-click="unmaskSecret()", ng-hide="security.master_seed", l10n) Show
                 a(href="", ng-click="security.master_seed = null", ng-show="security.master_seed", l10n) Hide
+          .section
+            .descriptor(l10n) Regular Key
+            div(ng-hide="userBlob.data.regularKey")
+              label(l10n) Account doesn't have a regular key
+              .row
+                .col-md-6
+                  //- TODO Loading
+                  a(href="", ng-click="generateRegularKey()") Generate Regular Key
+            .row(ng-show="userBlob.data.regularKey")
+              .col-md-6
+                span.value(ng-show="showRegularKey") {{userBlob.data.regularKey}}
+                span.value(ng-hide="showRegularKey") ••••••••••••••••••••••••••••••••••••••••••••
+              .col-md-1
+                a(href="", ng-click="showRegularKey = true", ng-hide="showRegularKey", l10n) Show
+                a(href="", ng-click="showRegularKey = false", ng-show="showRegularKey", l10n) Hide
+              //- .col-md-3(ng-show="userBlob.data.masterkey")
+              //-   //- TODO some help here, informing that the regular wallet file doesn't contain the master key
+              //-   a(href="", ng-click="saveRegularKey()", l10n) Save Wallet File
+              rp-popup(rp-popup-on-open="saveRegularKey()", ng-show="userBlob.data.masterkey") 
+                .col-md-3
+                  a(href="", rp-popup-link, ng-disabled='trustForm.$invalid || verifying', l10n) Save Wallet File
+                div.connectModal(rp-popup-content, ng-show="mode.register_regular_key_wallet")
+                  .modal-header
+                    .navbar-brand.hidden-sm.modal-logo#logo
+                    .modal-title(l10n) Encrypt
+                  .modal-body
+                    div.modal-prompt(l10n) 
+                      div(l10n-inc) Encrypt your regular key file: 
+                    form(name='encryptForm', ng-submit='encryptRegularKey()')
+                      .form-group(ng-class="{'field-error': 'weak' === strength}")
+                        label(for='register_password1', l10n) Password
+                        input.form-control#register_password1(
+                        name='register_password1', type='password', autocomplete="off"
+                        ng-model="password1"
+                        rp-strong-password, required, rp-focus, rp-same-in-set="password2")
+                        p(ng-show="strength=='weak'")
+                          span(l10n) Your password is weak. It is not a mix of letters, numbers and symbols.
+                      .form-group(ng-class="{'field-error': encryptForm.register_password2.$error.rpSameInSet && encryptForm.register_password2.$dirty}")
+                          label(for='register_password2', l10n) Confirm password
+                          input.form-control#register_password2(
+                          name='register_password2', autocomplete="off"
+                          type='password'
+                          ng-model="password2"
+                          required, rp-same-in-set="password1")
+                          p(ng-show="(encryptForm.register_password2.$error.rpSameInSet && encryptForm.register_password2.$dirty) && !encryptForm.register_password1.$error.rpStrongPassword")
+                            span(l10n) Passwords do not match
+                        div(ng-show="")
+                    div.modal-buttons
+                      button.modal-btn.btn.btn-default.btn-success.btn-md(data-dismiss="modal", ng-click="encryptRegularKey()",
+                        rp-spinner='{{loading ? 4 : null}}', ng-disabled='encryptForm.$invalid || submitLoading')
+                        span(ng-show="loading", l10n) Loading...
+                        span(ng-hide="loading", l10n) Confirm
+                      button.modal-btn.btn.btn-cancel.btn-md.btn-cancel(data-dismiss="modal",
+                        ng-click='toggle_form()', ng-hide="loading", l10n) cancel    
+              .col-md-1(ng-show="userBlob.data.masterkey")
+                a(href="", ng-click="removeRegularKey()", l10n) Remove
+              
+        //- Offline Sending
+        hr
+        group.mode-status(ng-show='mode.offlineSending')
+          signed-transaction(data="{{signedTransaction}}", txJSON="{{txJSON}}", hash="{{hash}}")
+          button.btn.btn-small.btn-primary(ng-click="mode.offlineSending = false") Close
+
+        alert.alert-success(ng-show="mode.saved_regular_key_wallet", l10n) Regular key wallet saved: {{regularWallet}}.
+        alert.alert-danger(ng-show="mode.error_regular_key_wallet", l10n) Error saving wallet.  Please try again.

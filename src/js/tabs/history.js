@@ -2,7 +2,10 @@ var util = require('util'),
     webUtil = require('../util/web'),
     Tab = require('../client/tab').Tab,
     rewriter = require('../util/jsonrewriter'),
-    Amount = ripple.Amount;
+    fs = require('fs'),
+    Amount = ripple.Amount,
+    gui = require('nw.gui'),
+    json2csv = require('json2csv');
 
 var HistoryTab = function ()
 {
@@ -20,8 +23,8 @@ HistoryTab.prototype.generateHtml = function ()
 };
 
 HistoryTab.prototype.angular = function (module) {
-  module.controller('HistoryCtrl', ['$scope', 'rpId', 'rpNetwork',
-                                     function ($scope, $id, $network)
+  module.controller('HistoryCtrl', ['$scope', 'rpId', 'rpNetwork', 'rpFileDialog',
+                                     function ($scope, $id, $network, filedialog)
   {
     if (!$id.loginStatus) $id.goId();
 
@@ -32,7 +35,12 @@ HistoryTab.prototype.angular = function (module) {
 
     // History collection
     $scope.historyShow = [];
-    $scope.historyCsv = '';
+
+    $scope.copyTooltip = 'Click to copy the transaction hash';
+    $scope.copy = function(hash) {
+      var clipboard = gui.Clipboard.get();
+      clipboard.set(hash, 'text');
+    };
 
     // History states
     $scope.$watch('loadState.transactions',function(){
@@ -41,9 +49,6 @@ HistoryTab.prototype.angular = function (module) {
 
     // Open/close states of individual history items
     $scope.details = [];
-
-    //$scope.typeUsage = [];
-    //$scope.currencyUsage = [];
 
     // Currencies from history
     var historyCurrencies = [];
@@ -70,12 +75,10 @@ HistoryTab.prototype.angular = function (module) {
         'checked': true
       },
       other: {
-        'types': ['accountset','failed','rippling'],
+        'types': ['accountset','failed','rippling','setregularkey'],
         'checked': true
       }
     };
-
-    $scope.advanced_feature_switch = Options.advanced_feature_switch;
 
     $scope.orderedTypes = ['sent','received','gateways','trades','orders','other'];
 
@@ -90,7 +93,7 @@ HistoryTab.prototype.angular = function (module) {
       $scope.filters = {
         'currencies_is_active': false, // we do the currency filter only if this is true, which happens when at least one currency is off
         'currencies': {},
-        'types': ['sent','received','exchange','trusting','trusted','offernew','offercancel','rippling'],
+        'types': ['sent','received','exchange','trusting','trusted','offernew','offercancel','rippling','setregularkey'],
         'minimumAmount': 0.000001
       };
     }
@@ -103,7 +106,8 @@ HistoryTab.prototype.angular = function (module) {
       var params = {
         account: $id.account,
         ledger_index_min: -1,
-        limit: 200
+        limit: 200,
+        binary: false
       };
 
       var getTx = function(){
@@ -180,7 +184,7 @@ HistoryTab.prototype.angular = function (module) {
     $scope.$watch('types', function(){
       var arr = [];
       var checked = {};
-      _.each($scope.types, function(type,index){
+      _.forEach($scope.types, function(type,index){
         if (type.checked) {
           arr = arr.concat(type.types);
         }
@@ -238,7 +242,6 @@ HistoryTab.prototype.angular = function (module) {
         var currencies = _.map($scope.filters.currencies,function(obj,key){return obj.checked ? key : false});
         history.forEach(function(event)
         {
-
           // Calculate dateMin/dateMax. Used in date filter view
           if (!$scope.dateMinView) {
             if (!dateMin || dateMin > event.date)
@@ -261,11 +264,11 @@ HistoryTab.prototype.angular = function (module) {
 
           // Type filter
           if (event.transaction && event.transaction.type === 'error') ; // Always show errors
-          else if (event.transaction && !_.contains($scope.filters.types,event.transaction.type))
+          else if (event.transaction && !_.includes($scope.filters.types,event.transaction.type))
             return;
 
           // Some events don't have transactions.. this is a temporary fix for filtering offers
-          else if (!event.transaction && !_.contains($scope.filters.types,'offernew'))
+          else if (!event.transaction && !_.includes($scope.filters.types,'offernew'))
             return;
 
           // Currency filter
@@ -292,6 +295,9 @@ HistoryTab.prototype.angular = function (module) {
                     if (event.transaction && event.transaction.type === 'offercancel')
                       return;
                   }
+                case 'regular_key_added':
+                case 'regular_key_changed':
+                case 'regular_key_removed':
                   effects.push(effect);
                   break;
               }
@@ -300,7 +306,7 @@ HistoryTab.prototype.angular = function (module) {
             event.showEffects = effects;
 
             // Trade filter - remove open orders that haven't been filled/partially filled
-            if (_.contains($scope.filters.types,'exchange') && !_.contains($scope.filters.types,'offercancel')) {
+            if (_.includes($scope.filters.types,'exchange') && !_.includes($scope.filters.types,'offercancel')) {
               if ((event.transaction && event.transaction.type === 'offernew' && !isFundedTrade) || isCancellation)
                 return
             }
@@ -378,7 +384,7 @@ HistoryTab.prototype.angular = function (module) {
 
         $scope.filters.currencies_is_active = false;
 
-        _.each(currencies, function(currency){
+        _.forEach(currencies, function(currency){
           var checked = ($scope.filters.currencies[currency] && $scope.filters.currencies[currency].checked) || firstProcess;
           objCurrencies[currency] = {'checked':checked};
 
@@ -410,7 +416,8 @@ HistoryTab.prototype.angular = function (module) {
         account: $id.account,
         ledger_index_min: -1,
         limit: limit,
-        marker: $scope.tx_marker
+        marker: $scope.tx_marker,
+        binary: false
       };
 
       $network.remote.requestAccountTransactions(params)
@@ -462,11 +469,6 @@ HistoryTab.prototype.angular = function (module) {
       return (caps ? first.toUpperCase() : first.toLowerCase()) + str.slice(1);
     };
 
-    var issuerToString = function(issuer) {
-      var iss = issuer.to_json();
-      return typeof iss === 'number' && isNaN(iss) ? '' : iss;
-    };
-
     // Convert Amount value to human-readable format
     var formatAmount = function(amount) {
       var formatted = '';
@@ -483,192 +485,201 @@ HistoryTab.prototype.angular = function (module) {
       return formatted;
     };
 
-    $scope.exportCsv = function() {
+    // Construct a CSV string by:
+    // 1) Iterating over each line item in the *displayed* Transaction History
+    // 2) If the type of Transaction is in scope, convert the relevant fields to strings in Key/Value pairs
+    function prepareCsv(cb) {
 
-      // Header (1st line) of CSV with name of each field
-      // Ensure that the field values for each row added in addLineToCsvToCsv() correspond in this order
-      var csv = 'Date,Time,Ledger Number,Transaction Type,Trust address,' +
-        'Address sent from,Amount sent/sold,Currency sent/sold,Issuer of sent/sold ccy,' +
-        'Address sent to,Amount received,Currency received,Issuer of received ccy,' +
-        'Executed Price,Network Fee paid,Transaction Hash\r\n';
+      // Names in CSV file
+      var fieldNames = ['Date', 'Time', 'Ledger Number', 'Transaction Type', 'Trust address',
+      'Address sent from', 'Amount sent/sold', 'Currency sent/sold', 'Issuer of sent/sold ccy,',
+      'Address sent to', 'Amount received', 'Currency received', 'Issuer of received ccy',
+      'Executed Price', 'Network Fee paid', 'Transaction Hash'];
+      // Do not re-order
+      var fields = ['Date', 'Time', 'LedgerNum', 'TransType', 'TrustAddr',
+      'FromAddr', 'SentAmount', 'SentCcy', 'SentIssuer',
+      'ToAddr', 'RecvAmount', 'RecvCcy', 'RecvIssuer',
+      'ExecPrice', 'Fee', 'TransHash'];
 
-      var addLineToCsv = function(line) {
-        // Ensure that the fields match the CSV header initialized in var csv
-        csv += [ line['Date'], line['Time'], line['LedgerNum'], line['TransType'], line['TrustAddr'], 
-          line['FromAddr'], line['SentAmount'], line['SentCcy'], line['SentIssuer'], 
-          line['ToAddr'], line['RecvAmount'], line['RecvCcy'], line['RecvIssuer'], 
-          line['ExecPrice'], line['Fee'], line['TransHash']
-          ].join(',') + '\r\n';
-      }
+      var xrpIssuer = 'rrrrrrrrrrrrrrrrrrrrrhoLvTp';
 
       // Convert the fields of interest in buy & sell Amounts to strings in Key/Value pairs
-      var getOrderDetails = function(keyVal, buy, sell) {
+      function getOrderDetails(keyVal, buy, sell) {
         if (buy !== null && buy instanceof Amount) {
-          keyVal['SentAmount'] = formatAmount(buy);
-          keyVal['SentCcy'] = buy.currency().get_iso();
-          keyVal['SentIssuer'] = issuerToString(buy.issuer());
+          keyVal.SentAmount = formatAmount(buy);
+          keyVal.SentCcy = buy.currency().get_iso();
+          keyVal.SentIssuer = buy.issuer() === xrpIssuer ? 'NA' : buy.issuer();
         }
 
         if (sell !== null && sell instanceof Amount) {
-          keyVal['RecvAmount'] = formatAmount(sell);
-          keyVal['RecvCcy'] = sell.currency().get_iso();
-          keyVal['RecvIssuer'] = issuerToString(sell.issuer());
+          keyVal.RecvAmount = formatAmount(sell);
+          keyVal.RecvCcy = sell.currency().get_iso();
+          keyVal.RecvIssuer = sell.issuer() === xrpIssuer ? 'NA' : sell.issuer();
         }
       }
 
-      // Construct a CSV string by:
-      // 1) Iterating over each line item in the *displayed* Transaction History
-      // 2) If the type of Transaction is in scope, convert the relevant fields to strings in Key/Value pairs
-      // 3) Concatenate the strings extracted in (2) in a comma-delimited line and append this line to the CSV
-      for (var i = 0; i < $scope.historyShow.length; i++) {
-        var  histLine = $scope.historyShow[i],
-          transaction = histLine.transaction,
-          type = histLine.tx_type,
-          dateTime = moment(histLine.date),
-          na = 'NA',
-          line = {},
-          lineTemplate = {},
-          lineTrust = {},
-          linePayment = {},
-          lineOffer = {},
-          sent;
-
-        // Unsuccessful transactions are excluded from the export
+      // Only consider these rows when exporting to CSV
+      var validRows = _.filter($scope.historyShow, function(historyEntry) {
+        var transaction = historyEntry.transaction;
         var transType = exists(transaction) ? transaction.type : null;
-        if (transType === 'failed' || histLine.tx_result !== 'tesSUCCESS') continue;
+        var type = historyEntry.tx_type;
+        if (transType === 'failed' || historyEntry.tx_result !== 'tesSUCCESS') {
+          // Ignore failed transactions
+          return false;
+        } else if (type === 'TrustSet' && (transType === 'trusted' || transType === 'trusting')) {
+          // Valid trust sets
+          return true;
+        } else if (type === 'Payment' && transType !== null) {
+          // Valid payments
+          if (transType === 'sent' || transType === 'received') {
+            return true;
+          }
+        } else if (type === 'Payment' || type === 'OfferCreate' || type === 'OfferCancel') {
+          // Valid offers (Created / Cancelled / Executed)
+          return true;
+        }
+        // All other txns are not exported to CSV
+        return false;
+      });
 
+      var csvBody = _.map(validRows, function(histLine) {
+        var transaction = histLine.transaction;
+        var type = histLine.tx_type;
+        var lineTemplate = {};
+
+        var transType = exists(transaction) ? transaction.type : null;
+
+        var dateTime = moment(histLine.date);
         // Fields common to all Transaction types
-        lineTemplate['Date'] = dateTime.format('YYYY-MM-DD');
-        lineTemplate['Time'] = dateTime.format('HH:mm:ss');
-        lineTemplate['LedgerNum'] = histLine.ledger_index;
-        lineTemplate['Fee'] = formatAmount(Amount.from_json(histLine.fee));
-        lineTemplate['TransHash'] = histLine.hash;
+        lineTemplate.Date = dateTime.format('YYYY-MM-DD');
+        lineTemplate.Time = dateTime.format('HH:mm:ss');
+        lineTemplate.LedgerNum = histLine.ledger_index;
+        lineTemplate.Fee = formatAmount(Amount.from_json(histLine.fee));
+        lineTemplate.TransHash = histLine.hash;
 
         // Default type-specific fields to NA, they will be overridden later if applicable
-        lineTemplate['TrustAddr'] = lineTemplate['FromAddr'] = lineTemplate['ToAddr'] = na;
-        lineTemplate['RecvAmount'] = lineTemplate['RecvCcy'] = lineTemplate['ExecPrice'] = na;
+        lineTemplate.TrustAddr = lineTemplate.FromAddr = lineTemplate.ToAddr = 'NA';
+        lineTemplate.RecvAmount = lineTemplate.RecvCcy = lineTemplate.ExecPrice = 'NA';
 
-        // Include if Payment, Trust, Offer. Otherwise Exclude.
         if (type === 'TrustSet') {
           // Trust Line (Incoming / Outgoing)
-          var trust = '';
+          var lineTrust = {};
 
-          if (transType === 'trusted') trust = 'Incoming ';
-          else if (transType === 'trusting') trust = 'Outgoing ';
-          else continue;  // unrecognised trust type
+          var trust = transType === 'trusted' ? 'Incoming' : 'Outgoing';
 
-          lineTrust['TransType'] = trust + 'trust line';
-          lineTrust['TrustAddr'] = transaction.counterparty;
+          lineTrust.TransType = trust + 'trust line';
+          lineTrust.TrustAddr = transaction.counterparty;
 
-          lineTrust['SentAmount'] = formatAmount(transaction.amount);
-          lineTrust['SentCcy'] = transaction.currency; //transaction.amount.currency().get_iso();
+          lineTrust.SentAmount = formatAmount(transaction.amount);
+          lineTrust.SentCcy = transaction.currency;
 
-          lineTrust['SentIssuer'] = lineTrust['RecvIssuer'] = na;
+          lineTrust.SentIssuer = lineTrust.RecvIssuer = 'NA';
 
-          line = $.extend({}, lineTemplate, lineTrust);
-          addLineToCsv(line);
-        }
-        else if (type === 'Payment' && transType !== null) {
+          return $.extend({}, lineTemplate, lineTrust);
+        } else if (type === 'Payment' && transType !== null) {
           // Payment (Sent / Received)
-          if (transType === 'sent') sent = true;
-          else if (transType === 'received') sent = false;
-          else continue;  // unrecognised payment type
+          var linePayment = {};
+          var sent = transType === 'sent';
 
-          linePayment['TransType'] = capFirst(transType, true) + ' ' + capFirst(type, false);
+          linePayment.TransType = capFirst(transType, true) + ' ' + capFirst(type, false);
 
           if (sent) {
             // If sent, counterparty is Address To
-            linePayment['ToAddr'] = transaction.counterparty;
-            linePayment['FromAddr'] = $id.account;
-          }
-          else {
+            linePayment.ToAddr = transaction.counterparty;
+            linePayment.FromAddr = $id.account;
+          } else {
             // If received, counterparty is Address From
-            linePayment['FromAddr'] = transaction.counterparty;
-            linePayment['ToAddr'] = $id.account;
+            linePayment.FromAddr = transaction.counterparty;
+            linePayment.ToAddr = $id.account;
           }
 
           if (exists(transaction.amountSent)) {
-            amtSent = transaction.amountSent;
-            linePayment['SentAmount'] = exists(amtSent.value) ? amtSent.value : formatAmount(Amount.from_json(amtSent));
-            linePayment['SentCcy'] = exists(amtSent.currency) ? amtSent.currency : 'XRP';
-            if (exists(transaction.sendMax)) linePayment['SentIssuer'] = transaction.sendMax.issuer;
+            var amtSent = transaction.amountSent;
+            linePayment.SentAmount = exists(amtSent.value) ? amtSent.value : formatAmount(Amount.from_json(amtSent));
+            linePayment.SentCcy = exists(amtSent.currency) ? amtSent.currency : 'XRP';
+            if (exists(transaction.sendMax)) {
+              linePayment.SentIssuer = transaction.sendMax.issuer === xrpIssuer ? 'NA' : transaction.sendMax.issuer;
+            }
           }
 
-          linePayment['RecvAmount'] = formatAmount(transaction.amount);
-          linePayment['RecvCcy'] = transaction.currency;
-          linePayment['RecvIssuer'] = issuerToString(transaction.amount.issuer());
+          linePayment.RecvAmount = formatAmount(transaction.amount);
+          linePayment.RecvCcy = transaction.currency;
+          linePayment.RecvIssuer = transaction.amount.issuer() === xrpIssuer ? 'NA' : transaction.amount.issuer();
 
-          line = $.extend({}, lineTemplate, linePayment);
-          addLineToCsv(line);
-        }
-        else if (type === 'Payment' || type === 'OfferCreate' || type === 'OfferCancel') {
+          return $.extend({}, lineTemplate, linePayment);
+        } else if (type === 'Payment' || type === 'OfferCreate' || type === 'OfferCancel') {
           // Offers (Created / Cancelled / Executed)
-          var effect;
+          var lineOffer = {};
 
           if (transType === 'offernew') {
             getOrderDetails(lineOffer, transaction.gets, transaction.pays);
-            lineOffer['TransType'] = 'Offer Created';
+            lineOffer.TransType = 'Offer Created';
 
-            line = $.extend({}, lineTemplate, lineOffer);
-            addLineToCsv(line);
-          }
-          else if (transType === 'offercancel') {
-            for (var e = 0; e < histLine.effects.length; e++) {
-              effect = histLine.effects[e];
+            return $.extend({}, lineTemplate, lineOffer);
+          } else if (transType === 'offercancel') {
+            var offer = _.find(histLine.effects, function(lineEffect) {
+              return lineEffect.type === 'offer_cancelled';
+            });
+            if (offer) {
+              getOrderDetails(lineOffer, offer.gets, offer.pays);
+              lineOffer.TransType = 'Offer Cancelled';
 
-              if (effect.type === 'offer_cancelled') {
-                getOrderDetails(lineOffer, effect.gets, effect.pays);
-                lineOffer['TransType'] = 'Offer Cancelled';
-
-                line = $.extend({}, lineTemplate, lineOffer);
-                addLineToCsv(line);
-
-                break;
-              }
+              return $.extend({}, lineTemplate, lineOffer);
             }
-          }
+          } else {
+            var index = 0;
+            _.forEach(histLine.showEffects, function(effect) {
+              var buy = null;
+              var sell = null;
+              var effectType = effect.type;
+              if (effectType === 'offer_bought' || effectType === 'offer_funded' || effectType === 'offer_partially_funded') {
+                // Order fills (partial or full)
 
-          for (var s = 0; s < histLine.showEffects.length; s++) {
-            effect = histLine.showEffects[s],
-              buy = null,
-              sell = null;
-            lineOffer = {};
+                if (effectType === 'offer_bought') {
+                  buy = exists(effect.paid) ? effect.paid : effect.pays;
+                  sell = exists(effect.got) ? effect.got : effect.gets;
+                } else {
+                  buy = exists(effect.got) ? effect.got : effect.gets;
+                  sell = exists(effect.paid) ? effect.paid : effect.pays;
+                }
 
-            switch (effect.type) {
-            case 'offer_bought':
-            case 'offer_funded':
-            case 'offer_partially_funded':
-              // Order fills (partial or full)
+                getOrderDetails(lineOffer, buy, sell);
+                lineOffer.TransType = 'Executed offer';
+                lineOffer.ExecPrice = formatAmount(effect.price);
 
-              if (effect.type === 'offer_bought') {
-                buy = exists(effect.paid) ? effect.paid : effect.pays;
-                sell = exists(effect.got) ? effect.got : effect.gets;
+                if (index++ > 0) {
+                  lineOffer.Fee = '';  // Fee only applies once
+                }
+                return $.extend({}, lineTemplate, lineOffer);
               }
-              else {
-                buy = exists(effect.got) ? effect.got : effect.gets;
-                sell = exists(effect.paid) ? effect.paid : effect.pays;
-              }
-
-              getOrderDetails(lineOffer, buy, sell);
-              lineOffer['TransType'] = 'Executed offer';
-              lineOffer['ExecPrice'] = formatAmount(effect.price);
-
-              line = $.extend({}, lineTemplate, lineOffer);
-              if (s > 0) line['Fee'] = '';  // Fee only applies once
-              addLineToCsv(line);
-
-            break;  // end case
-            }
+            });
           }
         }
-        // else unrecognised Transaction type hence ignored
-      }
+      });
 
-      // Ensure that historyCsv is set to empty string if there is nothing to download,
-      // otherwise the file download will be a single line with header and no data
-      $scope.historyCsv = $scope.historyShow.length ? csv : '';
+      json2csv({data: csvBody, fields: fields, fieldNames: fieldNames}, function(err, csv) {
+        if (err) {
+          cb(err);
+        } else {
+          cb(null, csv);
+        }
+      });
+    }
+
+    $scope.exportToCsv = function() {
+      // Default filename to display in dialog
+      var csvFile = 'ripple_historic';
+
+      prepareCsv(function(err, csv) {
+        if (err) {
+          console.log('Error preparing csv: ', err);
+        } else {
+          filedialog.saveAs(function(fileName) {
+            fs.writeFile(fileName, csv);
+          }, csvFile);
+        }
+      });
     };
-
   }]);
 };
 

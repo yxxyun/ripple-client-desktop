@@ -7,22 +7,54 @@
 var rewriter = require('../util/jsonrewriter'),
   genericUtils = require('../util/generic'),
   Amount = ripple.Amount,
-  gui = require('nw.gui'),
-  win = gui.Window.get();
+  RippleAddress = require('../util/types').RippleAddress,
+  fs = require('fs');
 
 var module = angular.module('app', []);
 
 module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
-                              'rpKeychain', '$location', '$timeout',
+                              'rpKeychain', '$route', '$timeout', 'rpFileDialog',
                               function ($scope, $compile, $id, $net,
-                                        keychain, $location, $timeout)
+                                        keychain, $route, $timeout, fileDialog)
 {
   reset();
 
   var account;
 
-  // For announcement banner
+  // Global sequence variable to be incremented after every transaction
+  $scope.$watch('userBlob', function() {
+    if ($scope.userBlob.data && $scope.userCredentials.username) {
+      if (!$scope.userBlob.data.sequence) {
+        $scope.userBlob.set('/sequence', 1);
+      }
+      if (!$scope.userBlob.data.fee) {
+        $scope.userBlob.set('/fee', 200000);
+      }
+      if (!$scope.userBlob.data.defaultDirectory) {
+        $scope.userBlob.set('/defaultDirectory', '');
+      }
+      $scope.sequence = $scope.userBlob.data.sequence;
+      $scope.fee = $scope.userBlob.data.fee;
+      $scope.defaultDirectory = $scope.userBlob.data.defaultDirectory;
+    }
+  });
 
+  $scope.incrementSequence = function() {
+    $scope.sequence++;
+    $scope.userBlob.set('/sequence', $scope.sequence);
+  }
+
+  // TODO make this wallet specific
+  $scope.onlineMode = !!store.get('onlineMode');
+
+  // Remember the onlineMode switch value and handle the connection
+  $scope.switchOnlineMode = function(){
+    $scope.onlineMode = !$scope.onlineMode;
+    $scope.onlineMode ? $net.connect() : $net.disconnect();
+    store.set('onlineMode', $scope.onlineMode);
+  };
+
+  // For announcement banner
   $scope.showAnnouncement = store.get('announcement');
 
   if('undefined' === typeof $scope.showAnnouncement) $scope.showAnnouncement = true;
@@ -31,6 +63,43 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
     store.set('announcement', false);
     $scope.showAnnouncement = store.get('announcement');
   }
+
+  // Set default directory if it has not already been set
+  $scope.fileInputClick = function(txnName, txData) {
+    fileDialog.openDir(function(evt) {
+      $scope.$apply(function() {
+        $scope.defaultDirectory = evt;
+        $scope.$watch('userBlob', function() {
+          if ($scope.userBlob.data && $scope.userCredentials.username) {
+            $scope.userBlob.set('/defaultDirectory', evt);
+            if ($scope.defaultDirectory) {
+              $scope.saveToDisk(txnName, txData);
+            }
+          }
+        });
+      });
+    });
+  };
+
+  $scope.saveToDisk = function(txnName, txData) {
+    var fileName = $scope.userBlob.data.defaultDirectory + '/' + txnName;
+    fs.writeFile(fileName, txData, function(err) {
+      $scope.$apply(function() {
+        $scope.fileName = fileName;
+        if (err) {
+          console.log('Error saving transaction: ', JSON.stringify(err));
+          $scope.error = true;
+        } else {
+          console.log('saved file');
+          $scope.saved = true;
+        }
+      });
+      // Reset root scope vars so messages do not persist accross controllers
+      setTimeout(function() {
+        $scope.error = $scope.saved = undefined;
+      }, 1000);
+    });
+  };
 
   // Global reference for debugging only (!)
   if ("object" === typeof rippleclient) {
@@ -41,6 +110,7 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
 
   function reset()
   {
+    $scope.defaultDirectory = '';
     $scope.account = {};
     $scope.lines = {};
     $scope.offers = {};
@@ -79,6 +149,26 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
   {
     var remote = $net.remote;
 
+    // If user logs in with regular key wallet
+    // check to see if wallet is still valid
+    remote.requestAccountInfo({
+      account: data.account
+    }, function(accountError, accountInfo) {
+      var invalidRegularWallet = false;
+      if (accountError) {
+        // Consider wallet valid
+        console.log('Error getting account data: ', accountError);
+      } else if ($scope.userBlob.data.regularKey && !$scope.userBlob.data.masterkey) {
+        // If we are using a regular wallet file (no masterkey)
+        // check to see if regular key is valid
+        var regularKeyPublic = new RippleAddress($scope.userBlob.data.regularKey).getAddress();
+        if (regularKeyPublic !== accountInfo.account_data.RegularKey) {
+          invalidRegularWallet = true;
+        }
+      }
+      $scope.invalidRegularWallet = invalidRegularWallet;
+    });
+
     account = data.account;
 
     reset();
@@ -116,7 +206,8 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
       account: data.account,
       ledger_index_min: -1,
       descending: true,
-      limit: Options.transactions_per_page
+      limit: Options.transactions_per_page,
+      binary: false
     })
       .on('transactions', handleAccountTx)
       .on('error', handleAccountTxError).request();
@@ -155,9 +246,6 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
 
         $scope.lines[line.account+line.currency] = line;
         updateRippleBalance(line.currency, line.account, line.balance);
-        if(line.account == "rrh7rf1gV2pXAoqA8oYbpHd8TKv5ZQeo67"){
-          store.set('gbi_connected', true);
-        }
       }
       console.log('lines updated:', $scope.lines);
 
@@ -204,6 +292,12 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
   function handleAccountEntry(data)
   {
     var remote = $net.remote;
+
+    // Only overwrite account data if the new data has a bigger sequence number (is a newer information)
+    if ($scope.account && $scope.account.Sequence && $scope.account.Sequence >= data.Sequence) {
+      return;
+    }
+
     $scope.account = data;
 
     // XXX Shouldn't be using private methods
@@ -301,7 +395,7 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
           case 'exchange':
             var funded = false;
             processedTxn.effects.some(function(effect) {
-              if (_.contains(['offer_bought','offer_funded','offer_partially_funded'], effect.type)) {
+              if (_.includes(['offer_bought','offer_funded','offer_partially_funded'], effect.type)) {
                 funded = true;
                 effects.push(effect);
                 return true;
@@ -339,7 +433,7 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
         // Iterate on each effect to find offers
         processedTxn.effects.forEach(function (effect) {
           // Only these types are offers
-          if (_.contains([
+          if (_.includes([
             'offer_created',
             'offer_funded',
             'offer_partially_funded',
@@ -388,13 +482,13 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
     var balancesUpdated;
 
     $.each(effects, function () {
-      if (_.contains([
+      if (_.includes([
         'trust_create_local',
         'trust_create_remote',
         'trust_change_local',
         'trust_change_remote',
         'trust_change_balance',
-        'trust_change_no_ripple'], this.type))
+        'trust_change_flags'], this.type))
       {
         var effect = this,
             line = {},
@@ -404,6 +498,8 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
         line.account = effect.counterparty;
         line.flags = effect.flags;
         line.no_ripple = !!effect.noRipple; // Force Boolean
+        line.freeze = !!effect.freeze; // Force Boolean
+        line.authorized = !!effect.auth;
 
         if (effect.balance) {
           line.balance = effect.balance;
@@ -463,7 +559,7 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
   var storeCurrenciesAll = store.get('ripple_currencies_all') || [];
 
   // run through all currencies
-  _.each($scope.currencies_all, function(currency) {
+  _.forEach($scope.currencies_all, function(currency) {
 
     // find the currency in the local storage
     var allCurrencyHit = _.where(storeCurrenciesAll, {value: currency.value})[0];
@@ -507,7 +603,7 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
   $scope.pairs_all.sort(compare_last_used);
 
   $scope.currencies_all_keyed = {};
-  _.each($scope.currencies_all, function(currency){
+  _.forEach($scope.currencies_all, function(currency){
     $scope.currencies_all_keyed[currency.value] = currency;
   });
 
@@ -567,18 +663,38 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
   }
 
   $net.listenId($id);
-  $net.init();
   $id.init();
+
+  $scope.onlineMode ? $net.connect() : $net.disconnect();
+
+  // Reconnect on server setting changes
+  var netConnectedListener = function(){};
+  $scope.$on('serverChange', function(event, serverSettings) {
+    if ($scope.onlineMode) {
+      var address = $scope.address;
+
+      $net.disconnect();
+      $net.connect(serverSettings);
+
+      // Remove listener
+      netConnectedListener();
+      netConnectedListener = $scope.$on('$netConnected', function() {
+        console.log('$scope.address', address);
+
+        $id.setAccount(address);
+      });
+    }
+  });
 
   $scope.logout = function () {
     $id.logout();
-    location.reload();
+    $route.reload();
   };
 
   $scope.$on('$idRemoteLogout', handleRemoteLogout);
   function handleRemoteLogout()
   {
-    location.reload();
+    $route.reload();
   }
 
   // Generate an array of source currencies for path finding.
@@ -623,7 +739,7 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
 
   $scope.generate_issuer_currencies = function () {
     var isIssuer = {};
-    _.each($scope.lines, function(line){
+    _.forEach($scope.lines, function(line){
       if (line.limit_peer.is_positive()) {
         isIssuer[line.balance.currency().to_hex()] = true;
       }
@@ -631,44 +747,7 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
     return isIssuer;
   };
 
-  
-  /**
-   * Context menu
-   */
-  var Menu = function(cutLabel, copyLabel, pasteLabel) {
-    var gui = require('nw.gui'),
-      menu = new gui.Menu(),
-      cut = new gui.MenuItem({
-        label: cutLabel || "Cut",
-        click: function() {
-          document.execCommand("cut");
-        }
-      }),
-      copy = new gui.MenuItem({
-        label: copyLabel || "Copy",
-        click: function() {
-          document.execCommand("copy");
-        }
-      }),
-      paste = new gui.MenuItem({
-        label: pasteLabel || "Paste",
-        click: function() {
-          document.execCommand("paste");
-        }
-      });
 
-    menu.append(cut);
-    menu.append(copy);
-    menu.append(paste);
-
-    return menu;
-  };
-
-  var menu = new Menu( /* pass cut, copy, paste labels if you need i18n*/ );
-  $(document).on("contextmenu", function(e) {
-    e.preventDefault();
-    e.target.tagName == 'INPUT' && menu.popup(e.originalEvent.x, e.originalEvent.y);
-  });
 
 
   /**

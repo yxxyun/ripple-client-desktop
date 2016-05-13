@@ -1,5 +1,8 @@
 var util = require('util');
 var Tab  = require('../client/tab').Tab;
+var Base58Utils = require('../util/base58');
+var RippleAddress = require('../util/types').RippleAddress;
+var fs = require('fs');
 
 var SecurityTab = function ()
 {
@@ -17,17 +20,24 @@ SecurityTab.prototype.generateHtml = function ()
 };
 
 SecurityTab.prototype.angular = function (module) {
-  module.controller('SecurityCtrl', ['$scope', 'rpId',
-                                     'rpKeychain', '$timeout', 'rpAuthFlow', 'rpPopup',
-                                     function ($scope, $id,
-                                               keychain, $timeout, authflow, popup)
+  module.controller('SecurityCtrl', ['$scope', 'rpId', 'rpKeychain', '$timeout',
+    'rpAuthFlow', 'rpPopup', 'rpNetwork', 'rpFileDialog',
+    function ($scope, $id, keychain, $timeout, authflow, popup, network, fileDialog)
   {
     if (!$id.loginStatus) $id.goId();
+
+    if(!!store.get('walletfile')) {
+      $scope.walletfile = store.get('walletfile');
+
+      // Get the name of the wallet from the entire file path
+      var walletarray = $scope.walletfile.split("/");
+      var length = walletarray.length;
+      $scope.walletname = walletarray[length - 1];
+    }
 
     $scope.settingsPage = 'security';
     
     $scope.showComponent = [];
-
 
     $scope.isUnlocked = true; //hiding the dialog for now
     //$scope.isUnlocked = keychain.isUnlocked($id.account);
@@ -39,6 +49,33 @@ SecurityTab.prototype.angular = function (module) {
     onBlobUpdate();
 
     $scope.security = {};
+    $scope.mode = {};
+
+    function saveTransaction(tx) {
+      tx.tx_json.Sequence = Number($scope.sequence);
+      $scope.incrementSequence();
+      // Fee must be converted to drops
+      tx.tx_json.Fee = ripple.Amount.from_json(Options.max_tx_network_fee).to_human() * 1000000;
+      tx.complete();
+      $scope.signedTransaction = tx.sign().serialize().to_hex();
+      $scope.txJSON = JSON.stringify(tx.tx_json);
+      $scope.hash = tx.hash('HASH_TX_ID', false, undefined);
+      $scope.mode.offlineSending = true;
+      var sequenceNumber = (Number(tx.tx_json.Sequence));
+      var sequenceLength = sequenceNumber.toString().length;
+      var txnName = $scope.userBlob.data.account_id + '-' + new Array(10 - sequenceLength + 1).join('0') + sequenceNumber + '.txt';
+      var txData = JSON.stringify({
+        tx_json: tx.tx_json,
+        hash: $scope.hash,
+        tx_blob: $scope.signedTransaction
+      });
+      if (!$scope.userBlob.data.defaultDirectory) {
+        $scope.fileInputClick(txnName, txData);
+      }
+      else {
+        $scope.saveToDisk(txnName, txData);
+      }
+    }
 
     function onBlobUpdate()
     {
@@ -147,7 +184,6 @@ SecurityTab.prototype.angular = function (module) {
     };
 
     function requestToken (force, callback) {
-
       authflow.requestToken($scope.userBlob.url, $scope.userBlob.id, force, function(tokenError, tokenResp) {
         $scope.via = tokenResp.via;
 
@@ -165,8 +201,106 @@ SecurityTab.prototype.angular = function (module) {
       });
     };
 
-    var reset = function() {
+    // Generate a regular key
+    // And save it on the current blob
+    $scope.generateRegularKey = function() {
+      $scope.regularKey = Base58Utils.encode_base_check(33, sjcl.codec.bytes.fromBits(sjcl.random.randomWords(4)));
+      $scope.regularKeyPublic = new RippleAddress($scope.regularKey).getAddress();
 
+      var tx = network.remote.transaction();
+
+      tx.on('success', function (res) {
+        console.log('success', res);
+      });
+
+      tx.on('proposed', function (res) {
+        console.log('proposed', res);
+      });
+
+      tx.on('error', function (res) {
+        console.log('error', res);
+      });
+
+      // Attach the key to the account
+      keychain.requestSecret($id.account, $id.username, function (err, secret) {
+        tx.secret(secret);
+        tx.setRegularKey({
+          account: $scope.address,
+          regular_key: $scope.regularKeyPublic
+        });
+        if ($scope.onlineMode) {
+          tx.submit();
+        } else {
+          saveTransaction(tx);
+        }
+      });
+
+      // Save the key in the blob
+      $scope.userBlob.set("/regularKey", $scope.regularKey);
+    };
+
+    // Remove regular key from master wallet file
+    // Unset regular key with Ripple transaction, so key is no longer valid
+    $scope.removeRegularKey = function() {
+      var tx = network.remote.transaction();
+
+      tx.on('success', function (res) {
+        console.log('success', res);
+      });
+
+      tx.on('proposed', function (res) {
+        console.log('proposed', res);
+      });
+
+      tx.on('error', function (res) {
+        console.log('error', res);
+      });
+
+      keychain.requestSecret($id.account, $id.username, function (err, secret) {
+        tx.secret(secret);
+        tx.setRegularKey({
+          account: $scope.address
+        });
+        if ($scope.onlineMode) {
+          tx.submit();
+        } else {
+          saveTransaction(tx);
+        }
+      });
+
+      // Remove the key from the blob
+      $scope.userBlob.unset("/regularKey");
+    };
+
+    // Chose file in which to save the regular key wallet
+    $scope.saveRegularKey = function() {
+      fileDialog.saveAs(function(filename) {
+        $scope.$apply(function() {
+          $scope.regularWallet = filename;
+          $scope.mode.register_regular_key_wallet = true;
+        });
+      }, $scope.walletname + '-regular');
+    };
+
+    // Encrypt a new blob containing the regular key only
+    // (no master key) with a passwork of the user's choosing
+    // Save this blob to disk
+    $scope.encryptRegularKey = function() {
+      $scope.userBlob.persistRegular($scope.regularWallet,
+        $scope.password1, function(err, data) {
+          $scope.$apply(function() {
+            $scope.mode.register_regular_key_wallet = false;
+            if (err) {
+              console.log('Error saving wallet: ', err);
+              $scope.mode.error_regular_key_wallet = true;
+            } else {
+              $scope.mode.saved_regular_key_wallet = true;
+            }
+          });
+        });
+    };
+
+    var reset = function() {
       $scope.openFormPassword = false;
       $scope.password1 = '';
       $scope.password2 = '';

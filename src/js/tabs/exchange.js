@@ -26,9 +26,40 @@ ExchangeTab.prototype.angular = function (module)
     'rpId', 'rpNetwork', 'rpKeychain', '$rootScope',
     function ($scope, $timeout, $routeParams, $id, $network, keychain, $rootScope)
     {
+
+      function setEngineStatus(res, accepted) {
+        $scope.engine_result = res.engine_result;
+        $scope.engine_result_message = res.engine_result_message;
+        switch (res.engine_result.slice(0, 3)) {
+        case 'tes':
+          $scope.tx_result = accepted ? 'cleared' : 'pending';
+          break;
+        case 'tem':
+          $scope.tx_result = 'malformed';
+          break;
+        case 'ter':
+          $scope.tx_result = 'failed';
+          break;
+        case 'tep':
+          $scope.tx_result = 'partial';
+          break;
+        case 'tec':
+          $scope.tx_result = 'claim';
+          break;
+        case 'tef':
+          $scope.tx_result = 'failure';
+          break;
+        case 'tel':
+          $scope.tx_result = 'local';
+          break;
+        default:
+          console.warn('Unhandled engine status encountered!');
+        }
+      }
+
       if (!$id.loginStatus) $id.goId();
 
-      var timer, pf;
+      var timer;
 
       // Remember user preference on Convert vs. Trade
       $rootScope.ripple_exchange_selection_trade = false;
@@ -58,6 +89,7 @@ ExchangeTab.prototype.angular = function (module)
 
 
       $scope.reset_paths = function () {
+        $network.remote.closeCurrentPathFind();
         var exchange = $scope.exchange;
 
         exchange.alternatives = [];
@@ -121,55 +153,65 @@ ExchangeTab.prototype.angular = function (module)
           $scope.exchange.path_status = 'pending';
           var amount = $scope.exchange.amount_feedback;
 
-          if (amount.is_zero()) return;
-
-          // Start path find
-          pf = $network.remote.pathFind($id.account,
-              $id.account,
-              amount);
-              // $scope.generate_src_currencies());
-              // XXX: Roll back pathfinding changes temporarily
+          if (amount.is_zero()) {
+            return;
+          }
           var isIssuer = $scope.generate_issuer_currencies();
-
           var lastUpdate;
 
-          pf.on('update', function (upd) {
+          // Start path find
+          var pf = $network.remote.createPathFind({
+            src_account: $id.account,
+            dst_account: $id.account,
+            dst_amount: amount
+          });
+
+          pf.on('error', function() {
+            $scope.$apply(function () {
+              $scope.exchange.path_status = 'error';
+            });
+          });
+
+          pf.on('update', function(upd) {
             $scope.$apply(function () {
               lastUpdate = new Date();
 
               clearInterval(timer);
-              timer = setInterval(function(){
-                $scope.$apply(function(){
-                  var seconds = Math.round((new Date() - lastUpdate)/1000);
+              timer = setInterval(function() {
+                $scope.$apply(function() {
+                  var seconds = Math.round((new Date() - lastUpdate) / 1000);
                   $scope.lastUpdate = seconds ? seconds : 0;
-                })
+                });
               }, 1000);
 
               if (!upd.alternatives || !upd.alternatives.length) {
-                $scope.exchange.path_status  = "no-path";
+                $scope.exchange.path_status = 'no-path';
                 $scope.exchange.alternatives = [];
               } else {
                 var currencies = {};
-                $scope.exchange.path_status  = "done";
+                $scope.exchange.path_status = 'done';
                 $scope.exchange.alternatives = _.filter(_.map(upd.alternatives, function (raw) {
                   var alt = {};
-                  alt.amount   = Amount.from_json(raw.source_amount);
-                  alt.rate     = alt.amount.ratio_human(amount);
-                  alt.send_max = alt.amount.scale(1.01);
-                  alt.paths    = raw.paths_computed
+
+                  alt.amount = Amount.from_json(raw.source_amount);
+
+                  alt.rate = alt.amount.ratio_human(amount);
+
+                  // Scale amount by 1.01 to get a send max
+                  // 1% greater than sending amount
+                  var scaleAmount = alt.amount.to_json();
+                  scaleAmount.value = 1.01;
+                  alt.send_max = alt.amount.scale(scaleAmount);
+                  alt.paths = raw.paths_computed
                       ? raw.paths_computed
                       : raw.paths_canonical;
 
-                  if (alt.amount.issuer().to_json() != $scope.address && !isIssuer[alt.amount.currency().to_hex()]) {
-                    currencies[alt.amount.currency().to_hex()] = true
+                  if (alt.amount.issuer() !== $scope.address && !isIssuer[alt.amount.currency().to_hex()]) {
+                    currencies[alt.amount.currency().to_hex()] = true;
                   }
 
                   return alt;
-                }), function(alt) {
-                  // XXX: Roll back pathfinding changes temporarily
-                  /* if (currencies[alt.amount.currency().to_hex()]) {
-                    return alt.amount.issuer().to_json() != $scope.address;
-                  } */
+                }), function() {
                   return true;
                 });
               }
@@ -246,7 +288,10 @@ ExchangeTab.prototype.angular = function (module)
         $timeout(function () {
           $scope.confirm_wait = false;
         }, 1000, true);
-
+        // Stop the pathfind - once we're on the confirmation page, we'll freeze
+        // the last state we had so the user doesn't get surprises when
+        // submitting.
+        $network.remote.closeCurrentPathFind();
         $scope.mode = "confirm";
       };
 
@@ -258,7 +303,7 @@ ExchangeTab.prototype.angular = function (module)
         // parse the currency name and extract the iso
         var currency = Currency.from_human($scope.exchange.currency_name);
         currency = currency.has_interest() ? currency.to_hex() : currency.get_iso();
-        var amount = Amount.from_human(""+$scope.exchange.amount+" "+currency);
+        var amount = Amount.from_human('' + $scope.exchange.amount + ' ' + currency);
 
         amount.set_issuer($id.account);
 
@@ -268,22 +313,25 @@ ExchangeTab.prototype.angular = function (module)
         tx.addMemo('client', 'rt' + $rootScope.version);
 
         // Destination tag
-        tx.destination_tag(webutil.getDestTagFromAddress($id.account));
+        var destinationTag = webutil.getDestTagFromAddress($id.account);
+        if (destinationTag) {
+          tx.setDestinationTag(webutil.getDestTagFromAddress($id.account));
+        }
         tx.payment($id.account, $id.account, amount.to_json());
-        tx.send_max($scope.exchange.alt.send_max);
-        tx.paths($scope.exchange.alt.paths);
+        tx.setSendMax($scope.exchange.alt.send_max);
+        tx.setPaths($scope.exchange.alt.paths);
 
         if ($scope.exchange.secret) {
-          tx.secret($scope.exchange.secret);
+          tx.setSecret($scope.exchange.secret);
         } else {
           // Get secret asynchronously
           keychain.requestSecret($id.account, $id.username,
             function (err, secret) {
               if (err) {
-                console.log("client: exchange tab: error while " +
-                  "unlocking wallet: ", err);
-                $scope.mode = "error";
-                $scope.error_type = "unlockFailed";
+                console.log('client: exchange tab: error while ' +
+                  'unlocking wallet: ', err);
+                $scope.mode = 'error';
+                $scope.error_type = 'unlockFailed';
 
                 return;
               }
@@ -300,49 +348,38 @@ ExchangeTab.prototype.angular = function (module)
             $scope.exchanged(tx.hash);
 
             // Remember currency and increase order
-            var found;
 
             for (var i = 0; i < $scope.currencies_all.length; i++) {
               if ($scope.currencies_all[i].value.toLowerCase() === $scope.exchange.amount_feedback.currency().get_iso().toLowerCase()) {
                 $scope.currencies_all[i].order++;
-                found = true;
                 break;
               }
             }
-
-            // // Removed feature until a permanent fix
-            // if (!found) {
-            //   $scope.currencies_all.push({
-            //     "name": $scope.exchange.amount_feedback.currency().to_human().toUpperCase(),
-            //     "value": $scope.exchange.amount_feedback.currency().to_human().toUpperCase(),
-            //     "order": 1
-            //   });
-            // }
           });
         });
-        tx.on('success',function(res){
+        tx.on('success', function(res) {
           setEngineStatus(res, true);
         });
         tx.on('error', function (res) {
           setImmediate(function () {
             $scope.$apply(function () {
-              $scope.mode = "error";
+              $scope.mode = 'error';
 
-              if (res.result === "tejMaxFeeExceeded") {
-                $scope.error_type = "maxFeeExceeded";
+              if (res.result === 'tejMaxFeeExceeded') {
+                $scope.error_type = 'maxFeeExceeded';
               }
 
               if (res.error === 'remoteError' &&
                   res.remote.error === 'noPath') {
-                $scope.mode = "status";
-                $scope.tx_result = "noPath";
+                $scope.mode = 'status';
+                $scope.tx_result = 'noPath';
               }
             });
           });
         });
         tx.submit();
 
-        $scope.mode = "sending";
+        $scope.mode = 'sending';
       };
 
       /**
@@ -362,45 +399,13 @@ ExchangeTab.prototype.angular = function (module)
         }
       };
 
-      function setEngineStatus(res, accepted) {
-        $scope.engine_result = res.engine_result;
-        $scope.engine_result_message = res.engine_result_message;
-        switch (res.engine_result.slice(0, 3)) {
-          case 'tes':
-            $scope.tx_result = accepted ? "cleared" : "pending";
-            break;
-          case 'tem':
-            $scope.tx_result = "malformed";
-            break;
-          case 'ter':
-            $scope.tx_result = "failed";
-            break;
-          case 'tep':
-            $scope.tx_result = "partial";
-            break;
-          case 'tec':
-            $scope.tx_result = "claim";
-            break;
-          case 'tef':
-            $scope.tx_result = "failure";
-            break;
-          case 'tel':
-            $scope.tx_result = "local";
-            break;
-          default:
-            console.warn("Unhandled engine status encountered!");
-        }
-      }
-
       $scope.reset();
 
       updateCurrencyOptions();
 
       // Stop the pathfinding when leaving the page
-      $scope.$on('$destroy', function(){
-        if (pf && "function" === typeof pf.close) {
-          pf.close();
-        }
+      $scope.$on('$destroy', function() {
+        $network.remote.closeCurrentPathFind();
       });
     }]);
 

@@ -12,10 +12,10 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
   //- Connected
 
   div(ng-show="!loadingAccount && !account.Balance && loadState.account && connected && !debug")
-    include ../tabs/banner/unfunded
+    include ../tabs/banner/_unfunded
 
   group(ng-show="connected && loadState.offers")
-    .settings
+    .settings(ng-hide="readOnly")
       .row
         .col-sm-10.col-md-7.col-lg-7.col-xs-10.currency-config
           input.form-control.currency#currency_pair(
@@ -33,39 +33,44 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
         .col-md-2.col-lg-2.col-xs-6(ng-hide="adding_pair")
           button.btn.btn-cancel.btn-block(ng-click="gotoSettings()", l10n)
             | edit pairs
-      form.row#gateway_change_form(name="gateway_change_form", ng-show="adding_pair", ng-submit="add_pair()")
-        .col-sm-4.col-lg-2.col-xs-12
-          .description(l10n) Base Currency
-          input.form-control(
-            name="first_currency", type="text"
-            rp-combobox="currencies", rp-combobox-select
-            ng-model="first_currency_selected")
-        .col-sm-6.col-lg-3.col-xs-11
-          .description(l10n) Base Gateway
-          input.form-control(
-            name="first_iss", type="text", ng-disabled="disable_first_issuer"
-            rp-combobox="first_iss", rp-combobox-select
-            rp-dest, rp-dest-address, rp-dest-contact
-            ng-model="first_issuer_selected")
-        .col-xs-1
-          .description.slash /
-        .col-sm-4.col-lg-2.col-xs-12
-          .description(l10n) Counter&nbsp;Currency
-          input.form-control(
-            name="second_currency", type="text"
-            rp-combobox="currencies", rp-combobox-select
-            ng-model="second_currency_selected")
-        .col-sm-6.col-lg-3.col-xs-12
-          .description(l10n) Counter Gateway
-          input.form-control(
-            name="second_iss", type="text", ng-disabled="disable_second_issuer"
-            rp-combobox="second_iss", rp-combobox-select
-            rp-dest, rp-dest-address, rp-dest-contact
-            ng-model="second_issuer_selected")
-        .col-sm-4.col-lg-2.col-xs-6#cancel_button
-          button.btn.btn-cancel.btn-block(type="button", ng-click="adding_pair = false", l10n) cancel
-        .col-sm-4.col-lg-2.col-xs-6#add_button
-          button.btn.btn-success.btn-block.submit(type="submit", ng-disabled="gateway_change_form.$invalid || gateway_change_form.$pending", l10n) Add
+      form#gateway_change_form(name="gateway_change_form", ng-show="adding_pair", ng-submit="add_pair()")
+        .row
+          .col-sm-3
+            .description(l10n) Base Currency
+            input.form-control(
+              name="first_currency", type="text"
+              rp-combobox="currencies", rp-combobox-select
+              ng-model="first_currency_selected")
+          .col-sm-6
+            .description(l10n) Base Gateway
+            input.form-control(
+              name="first_iss", type="text"
+              ng-model="first_issuer_selected"
+              rp-combobox="first_iss", rp-combobox-select
+              rp-dest, rp-dest-address, rp-dest-contact
+              ng-disabled="disable_first_issuer")
+          .col-sm-1
+            .description.slash /
+        .row
+          .col-sm-3
+            .description(l10n) Counter Currency
+            input.form-control(
+              name="second_currency", type="text"
+              rp-combobox="currencies", rp-combobox-select
+              ng-model="second_currency_selected")
+          .col-sm-6
+            .description(l10n) Counter Gateway
+            input.form-control(
+              name="second_iss", type="text",
+              ng-model="second_issuer_selected"
+              rp-combobox="second_iss", rp-combobox-select
+              rp-dest, rp-dest-address, rp-dest-contact
+              ng-disabled="disable_second_issuer")
+        .row
+          .col-sm-4.col-sm-offset-3#add_button
+            button.btn.btn-success.btn-block.submit(type="submit", ng-disabled="gateway_change_form.$invalid || gateway_change_form.$pending", l10n) Add
+          .col-sm-2#cancel_button
+            button.btn.btn-cancel.btn-block(type="button", ng-click="adding_pair = false", l10n) cancel
 
     form.issuerSelector.first-issuer(name='first_issuer_form', ng-show='show_issuer_form == "first"')
       label(for='first_issuer', l10n) Base currency issuer ({{order.first_currency | rpcurrency}})
@@ -107,7 +112,7 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
       |  gateway's address.&#32;
 
     group(ng-if="order.valid_settings")
-      ul.ticker
+      ul.ticker(ng-hide="readOnly")
         .row
           li.col-xs-6.col-sm-3
             span(l10n) Bid
@@ -135,7 +140,7 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
         p.literal(l10n) You have to be funded before you can trade
 
       //- 1. Order widgets
-      group.row.send-widgets(ng-show="account.Balance")
+      group.row.send-widgets(ng-show="account.Balance && !readOnly")
         .col-xs-12.col-sm-6(ng-repeat="type in ['buy','sell']")
           .trade-widget(ng-switch="order[type].mode")
             .head
@@ -341,7 +346,7 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
             group.mode-done(ng-switch-when='done')
               group.pending(ng-show='order[type].tx_result=="pending"')
                 h2.tx-status(l10n) Your order has been submitted.
-              group.result-success(ng-show="'order[type].tx_result==cleared' && executedOnOfferCreate=='none'")
+              group.result-success(ng-show="'order[type].tx_result==cleared' && executedOnOfferCreate=='none'", ng-hide='order[type].tx_result=="claim"')
                 h2.tx-status(l10n) Your order is now active.
               group.result-success(ng-show="'order[type].tx_result==cleared' && executedOnOfferCreate=='all'")
                 h2.tx-status(l10n) Your order has been filled.
@@ -356,7 +361,7 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
                   |  - {{order[type].engine_result_message}}
               group.result-malformed(ng-show='order[type].tx_result=="claim"')
                 h2.tx-status(l10n) Transaction failed.
-                p(ng-switch on="order[type].engine_result")
+                p(ng-switch="order[type].engine_result")
                   span(ng-switch-when="tecUNFUNDED_ORDER", l10n)
                     | You do not have enough {{(type == 'buy' ? order.second_currency : order.first_currency) | rpcurrency}} to create this order.
                   span(ng-switch-when="tecINSUF_RESERVE_OFFER", l10n)
@@ -366,17 +371,17 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
                     | Error: {{order[type].engine_result_message}}
               group.result-failed(ng-show='order[type].tx_result=="failed"')
                 h2.tx-status(l10n) Trade failed.
-                p(ng-switch on="order[type].engine_result")
+                p(ng-switch="order[type].engine_result")
                   span(ng-switch-default, l10n) Trade failed, reason: {{order[type].engine_result_message}}
               group.result-failed(ng-show='order[type].tx_result=="local"')
                 h2.tx-status(l10n) Transaction failed.
-                p(ng-switch on="order[type].engine_result")
+                p(ng-switch="order[type].engine_result")
                   span(ng-switch-when="telINSUF_FEE_P", l10n)
                     | The particular server you sent the transaction to was too busy to forward or process
                     |  your transaction at the fee you included in it.
               group.result-failed(ng-show='order[type].tx_result=="unknown"')
                 h2.tx-status {{order[type].engine_result}}
-                p(ng-switch on="order[type].engine_result")
+                p(ng-switch="order[type].engine_result")
                   span(ng-switch-default) {{order[type].engine_result_message}}
               hr
               .actionLink
@@ -384,11 +389,13 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
 
       h3(l10n) My Orders
         span ({{offersCount}})
-        small.toggle(ng-hide="isEmpty(offers)", ng-click="hideOffers = !hideOffers") {{hideOffers ? "show" : "hide"}}
-      .listings.offers(ng-class="{show : !hideOffers}")
+        small.toggle(ng-click="hideOffers = !hideOffers")
+          span(ng-show="hideOffers", l10n) show
+          span(ng-hide="hideOffers", l10n) hide
+      .listings.offers(ng-hide="hideOffers")
         .my
           div(ng-hide="isEmpty(offers)")
-            .row.head.hidden-xs
+            .row.head
               .col-sm-1.type(l10n) Type
               .col-sm-4(l10n) Currencies
                 span.issuer(l10n-inc)  (Issuer)
@@ -400,18 +407,18 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
             .col-sm-4(data-label="Currencies")
               a(href="",ng-click="goto_order_currency()")
                 span {{entry.first | rpcurrency}}
-                span.issuer(ng-show="entry.first.issuer().to_json()") &nbsp;(
+                span.issuer(ng-show="entry.first.issuer() && !entry.first.is_native()") &nbsp;(
                   span(
-                    rp-pretty-issuer="entry.first.issuer().to_json()"
+                    rp-pretty-issuer="entry.first.issuer()"
                     rp-pretty-issuer-contacts="userBlob.data.contacts"
                   ) ???
                   | )
                 span(ng-show="'buy' == entry.type", l10n)  with
                 span(ng-show="'sell' == entry.type", l10n)  for
                 span  {{entry.second | rpcurrency}}
-                span.issuer(ng-show="entry.second.issuer().to_json()") &nbsp;(
+                span.issuer(ng-show="entry.second.issuer() && !entry.second.is_native()") &nbsp;(
                   span(
-                    rp-pretty-issuer="entry.second.issuer().to_json()"
+                    rp-pretty-issuer="entry.second.issuer()"
                     rp-pretty-issuer-contacts="userBlob.data.contacts"
                   ) ???
                   | )
@@ -435,12 +442,12 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
         span(l10n)  Error: {{cancelError}}  
         a.dismiss(href="", ng-click="dismissCancelError()", l10n)  hide
         
-      h3
+      h3(ng-hide="readOnly")
         span(l10n) Orderbook
         small.toggle(ng-click="hideOrderBook = !hideOrderBook")
           span(ng-show="hideOrderBook", l10n) show
           span(ng-hide="hideOrderBook", l10n) hide
-      div(ng-hide="hideOrderBook")
+      div(ng-hide="hideOrderBook || readOnly")
         .listings.orders
           //- TODO highlight changes
           .row.orderbook

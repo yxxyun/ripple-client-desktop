@@ -1,0 +1,100 @@
+container(ng-controller="ColdWalletCtrl")
+  group.error(ng-show="accountError")  {{accountError}}
+    hr
+
+  group.disconnected(ng-hide="connected")
+    p.literal(l10n) You have to be online to see this screen
+
+  group(ng-if="connected && accountLoaded", ng-hide="accountError")
+    div.row.row-content
+      div.col-xs-12.col-sm-6
+        div.panel.panel-primary
+          div.panel-heading
+            h3.panel-title Account: {{address}}
+          div.panel-body
+            dl.dl-horizontal
+              dt Sequence Number
+              dd {{sequenceNumber}}
+              dt Network Fee
+              dd {{networkFee}} XRP
+              dt Regular Key Enabled
+              dd {{regularKeyEnabled}}
+      //div.col-xs-12.col-sm-7
+        div.well
+          p(ng-hide="transactionError") {{lastTxn}} The transaction was validated at {{txnTime | date:'yyyy-MM-dd HH:mm:ss Z'}}.
+          p.error(ng-show="transactionError") {{transactionErrorMessage}}
+    div.row.row-content
+      div.col-xs-12
+        h4 Account Flags 
+          i.fa.fa-question-circle.help-icon(
+            rp-popover
+            rp-popover-placement="right"
+            l10n-rp-popover-title="Setup Information"
+            rp-popover-trigger="click"
+            l10n-data-content="Best practices for these account flags may be found <a href=https://ripple.com/build/gateway-guide/ target=_blank>here</a>.")
+        div.table-responsive
+          table.table.table-striped.table-bordered
+            thead
+              tr
+                th Setting
+                th Enabled
+                th Description
+            tbody
+              tr(ng-repeat="line in accountInfo")
+                td {{line.setting}}
+                td {{line.enabled}}
+                td {{line.description}}
+    div.row.row-content
+      div.col-xs-12
+        h4 Balances
+        div.table-responsive
+          table.table.table-striped.table-bordered
+            thead
+              tr
+                th Currency
+                th Counterparty
+                th Value
+            tbody
+              tr
+                td XRP
+                td
+                td {{xrpBalance}}
+              tr.available
+                td Available
+                td
+                td {{ max_spend | rpamount:{precision: 6} }}
+              tr.reserve
+                td Reserve
+                td
+                td {{ reserve | rpamount:{precision: 6} }}
+              tr(ng-repeat="balance in lines")
+                td {{balance.currency}}
+                td {{balance.account}}
+                td {{balance.balance}}
+    div.row.row-content(ng-hide="!warningLines.length")
+      div.col-xs-12
+        h4 Trust Lines with warnings
+        div.table-responsive
+          table.table.table-striped.table-bordered
+            thead.danger
+              tr
+                th Counterparty
+                th Currency
+                th Rippling
+                th Authorized
+                th Warning
+            tbody
+              tr(ng-repeat="line in warningLines")
+                td {{line.account}}
+                td {{line.currency}}
+                td(ng-if="!line.no_ripple") Enabled
+                td(ng-if="line.no_ripple") Disabled
+                td {{line.authorized}}
+                td(ng-if="line.warning1 && line.warning2") {{line.warning1}} <br>{{line.warning2}}
+                td(ng-if="line.warning1 && !line.warning2") {{line.warning1}}
+                td(ng-if="line.warning2 && !line.warning1") {{line.warning2}}
+  div.row.row-content
+    .col-xs-6.col-sm-2
+      button.btn.btn-success.btn-block(ng-click='refresh()') Refresh
+    .col-xs-6.col-sm-2
+      a.btn.btn-success.btn-block(href="#/login") Back to login

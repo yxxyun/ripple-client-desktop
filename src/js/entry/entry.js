@@ -16,6 +16,7 @@ require('../directives/directives');
 require('../directives/datalinks');
 require('../directives/errors');
 require('../directives/qr');
+require('../directives/signedTransaction');
 require('../filters/filters');
 require('../services/globalwrappers');
 require('../services/id');
@@ -23,10 +24,12 @@ require('../services/blob');
 require('../services/authflow');
 require('../services/keychain');
 require('../services/network');
+//require('../services/api');
 require('../services/books');
 require('../services/transactions');
 require('../services/ledger');
 require('../services/popup');
+require('../services/nwhelpers');
 require('../services/filedialog');
 
 // Angular module dependencies
@@ -39,6 +42,7 @@ var appDependencies = [
   // Services
   'id',
   'filedialog',
+  'nwhelpers',
   // Directives
   'charts',
   'effects',
@@ -69,10 +73,13 @@ var tabdefs = [
   require('../tabs/advanced'),
   require('../tabs/security'),
   require('../tabs/tx'),
-  require('../tabs/xrp'),
   require('../tabs/eula'),
-  require('../tabs/settingsgateway'),
-  require('../tabs/settingstrade')
+  require('../tabs/accountflags'),
+  require('../tabs/settingstrade'),
+  require('../tabs/coldwallet'),
+  require('../tabs/submit'),
+  require('../tabs/coldwalletsettings'),
+  require('../tabs/tou')
 ];
 
 // Language
@@ -116,11 +123,11 @@ rippleclient.types = types;
 
 // for unit tests
 rippleclient.tabs = {};
-_.each(tabs, function(tab) { rippleclient.tabs[tab.tabName] = tab; });
+_.forEach(tabs, function(tab) { rippleclient.tabs[tab.tabName] = tab; });
 
 app.config(['$routeProvider', function ($routeProvider) {
   // Set up routing for tabs
-  _.each(tabs, function (tab) {
+  _.forEach(tabs, function (tab) {
     var config = {
       tabName: tab.tabName,
       tabClass: 't-' + tab.tabName,
@@ -136,13 +143,13 @@ app.config(['$routeProvider', function ($routeProvider) {
     $routeProvider.when('/' + tab.tabName, config);
 
     if (tab.extraRoutes) {
-      _.each(tab.extraRoutes, function(route) {
+      _.forEach(tab.extraRoutes, function(route) {
         $.extend({}, config, route.config);
         $routeProvider.when(route.name, config);
       });
     }
 
-    _.each(tab.aliases, function (alias) {
+    _.forEach(tab.aliases, function (alias) {
       $routeProvider.when('/' + alias, config);
     });
   });
@@ -168,11 +175,11 @@ app.config(['$routeProvider', function ($routeProvider) {
   $routeProvider.otherwise({redirectTo: '/404'});
 }]);
 
-app.run(['$rootScope', '$route', '$routeParams',
-  function ($rootScope, $route, $routeParams)
+app.run(['$rootScope', '$route', '$routeParams', 'rpNW',
+  function ($rootScope, $route, $routeParams, rpNW)
   {
     // This is the desktop client
-    $rootScope.productName = 'Ripple Client';
+    $rootScope.productName = 'Ripple Admin Console';
 
     // Global reference for debugging only (!)
     if ("object" === typeof rippleclient) {
@@ -215,6 +222,9 @@ app.run(['$rootScope', '$route', '$routeParams',
         }
       });
     });
+
+    rpNW.initCtxMenu();
+    rpNW.initTray();
   }]);
 
 if ("function" === typeof angular.resumeBootstrap) {
@@ -225,11 +235,17 @@ if ("function" === typeof angular.resumeBootstrap) {
   };
 }
 
-// Edit menu
+/**
+ * NW.js stuff
+ */
+
 var gui = require('nw.gui');
+var win = gui.Window.get();
+
+// Edit menu
 if (process.platform === "darwin") {
   var mb = new gui.Menu({type: 'menubar'});
-  mb.createMacBuiltin('Ripple Client', {
+  mb.createMacBuiltin('Ripple Admin Console', {
     hideEdit: false
   });
   gui.Window.get().menu = mb;

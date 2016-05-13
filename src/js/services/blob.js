@@ -6,8 +6,8 @@
 
 // TODO build a blobPrototype.
 // There's currently a code repetition between blobLocal and blobRemote..
-
-var fs = require("fs");
+'use strict';
+var fs = require('fs');
 
 var module = angular.module('blob', []);
 
@@ -124,6 +124,26 @@ module.factory('rpBlob', ['$rootScope', function ($scope)
     fs.writeFile(this.walletfile, this.encrypt(), function(){
       callback(null, blob);
     });
+  };
+
+  // Store regular key wallet in a file
+  BlobObj.prototype.persistRegular = function(walletfile, password, callback)
+  {
+    var self = this;
+    var regularKeyBlob = new BlobObj(password, walletfile);
+
+    regularKeyBlob.data = {
+      regularKey: self.data.regularKey,
+      sequence: self.data.sequence,
+      fee: self.data.fee,
+      defaultDirectory: self.data.defaultDirectory,
+      lastSeenTxDate: self.data.lastSeenTxDate,
+      account_id: self.data.account_id,
+      contacts: [],
+      created: (new Date()).toJSON()
+    };
+
+    regularKeyBlob.persist(callback);
   };
 
   BlobObj.prototype.encrypt = function()
@@ -291,16 +311,16 @@ module.factory('rpBlob', ['$rootScope', function ($scope)
   };
 
   BlobObj.prototype.set = function (pointer, value, callback) {
-    this.applyUpdate('set', pointer, [value]);
-    };
+    this.applyUpdate('set', pointer, [value], callback);
+  };
 
   BlobObj.prototype.unset = function (pointer, callback) {
-    this.applyUpdate('unset', pointer, []);
-    };
+    this.applyUpdate('unset', pointer, [], callback);
+  };
 
   BlobObj.prototype.extend = function (pointer, value, callback) {
-    this.applyUpdate('extend', pointer, [value]);
-    };
+    this.applyUpdate('extend', pointer, [value], callback);
+  };
 
   /**
    * Prepend an entry to an array.

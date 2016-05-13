@@ -1,5 +1,5 @@
 // TODO all _ or all -
-.t-register, .t-login {
+.t-register, .t-login, .t-submit, .t-coldwallet, .t-tou {
   header nav {
     display: none;
   }
@@ -35,7 +35,7 @@
 
   .auth-form-container {
     font-family: OpenSansRegular;
-    padding: 0 45px;
+
     h2 {
       margin: 10px 0 30px 0;
       padding: 0 0 30px;
@@ -120,22 +120,6 @@
         }
       }
     }
-    .secret-key-container {
-      margin-bottom: 30px;
-      background: @lightyellow;
-      padding: 15px;
-      border: 1px solid @midgray;
-      color: @darkyellow;
-      .rounded(5px);
-
-      .secret-key {
-        padding-top: 15px;
-        margin-bottom: 10px;
-        span {
-          padding: 0 10px;
-        }
-      }
-    }
     .switch-mode-link-container {
       text-align: center;
 
@@ -143,49 +127,6 @@
         text-decoration: none;
       }
     }
-
-    .sign-up-steps-list {
-      margin-bottom: 15px;
-      li {
-        margin-right: 25px;
-        display: inline-block;
-        list-style: none;
-        padding-bottom: 5px;
-        border-bottom: 5px solid transparent;
-        &.active {
-          color: @darkgray;
-          font-weight: bold;
-          border-bottom: 5px solid @darkgray;
-        }
-        &.completed{
-          color: @darkgray;
-          font-weight: bold;
-        }
-
-      }
-    }
-    .see-privacy-text {
-      color: @darkgray;
-      font-size: 13px;
-      margin-bottom: 15px;
-    }
-
-    &.mode-verify {
-      .code {
-        font-family: OpenSansBold;
-        font-size: 15px;
-        margin: 10px 0;
-      }
-      .status {
-        margin: 10px 0;
-        text-align: center;
-      }
-    }
-  }
-
-  .switch-mode-wrapper {
-    text-align: center;
-    font-family: OpenSansRegular;
   }
 
   .strength {
@@ -210,17 +151,6 @@
     margin: -20px 0 0 0;
   }
 
-  .storageinfo strong {
-    color: @black;
-  }
-
-  .storageinfo a {
-    font-size: 0.7em;
-  }
-
-  .storeChange {
-    display: block;
-  }
   .auth-form-wrapper {
     
     .submit-btn-container {
@@ -256,37 +186,16 @@
   text-align: center;
   }
 
-  h3.platform, h4.new {
-  max-width: 700px;
-  margin: auto;
-  }
-
-  h4.new {
-  padding: 25px 0;
-  border-top: 1px solid @midgray;
-  font-weight: 200;
-  font-size: 1.1em;
-  }
-
   span.currency {
   font-weight: 500;
-  }
-
-  .xrp-xau {
-  font-size: 1.2em;
-  }
-}
-
-#t-migrate {
-  .text-status {
-    #error{
-      font-size: 12px;
-      color: @midred;
-    }
   }
 }
 
 #t-login {
+
+  .options {
+    margin: 0 0 30px;
+  }
 
   .content {
     padding-bottom: 50px;
@@ -308,98 +217,15 @@
       }
     }
   }
-
-  .maskedPhone {
-    font-size:16px;
-    margin:0 5px;
-  }
-
-  .rememberMe {
-    margin: 4px 7px 0 0;
-    float: left;
-  }
   
   .dragover {
     color: #333333;
     background-color: #e6e6e6;
     border-color: #adadad;
   }
-
-  .action-login {
-    .info {
-      font-family: OpenSansLight;
-      border-right: 1px solid @midgray;
-
-      @media (max-width: @screen-xs-max) {
-        border-right: none;
-      }
-
-      .literal {
-        font-size: 20px;
-      }
-
-      p {
-        padding-left: @grid-gutter-width/2;
-        padding-right: @grid-gutter-width/2;
-
-        @media (max-width: @screen-sm-max) and (min-width: @screen-xs-max) {
-          padding-left: 0;
-          padding-right: 0;
-        }
-
-        word-break: break-all;
-        font-size: 18px;
-        color: @black;
-      }
-
-      .amount,
-      .address {
-        margin-left: -@grid-gutter-width/2;
-        background-color: @lightgray;
-        margin-bottom: 30px;
-
-        padding-left: @grid-gutter-width;
-        padding-right: @grid-gutter-width;
-
-        @media (max-width: @screen-xs-max) {
-          margin-right: -@grid-gutter-width/2;
-        }
-
-        @media (max-width: @screen-sm-max) and (min-width: @screen-xs-max) {
-          padding-left: @grid-gutter-width/2;
-          padding-right: @grid-gutter-width/2;
-        }
-      }
-
-      .amount {
-        padding-top: 30px;
-        padding-bottom: 25px;
-
-        .number {
-          font-weight: bold;
-          font-size: 30px;
-        }
-        .currency {
-          padding: 0 0 0 5px;
-          font-size: 20px;
-        }
-      }
-
-      .address {
-        padding-top: 25px;
-        padding-bottom: 25px;
-        font: 18px 'OpenSansRegular';
-        color: @darkgray;
-      }
-    }
-  }
 }
 
 #t-balance {
-
-  .content {
-    padding-top: 0;
-  }
 
   #welcome {
     font: 18px 'OpenSansLight';
@@ -454,141 +280,6 @@
     }
   }
 
-  .currency-overview {
-    border: 1px solid @midgray;
-    background-color: @lightgray;
-    padding: 10px;
-    margin: 0;
-    margin-bottom: 10px;
-    overflow: hidden;
-
-    .flat-select() {
-      padding-right: 20px;
-      border: none;
-      background: transparent url('../img/dropdown_arrow.svg') no-repeat;
-      background-position: center right;
-      appearance: none;
-      -moz-appearance: none;
-      -webkit-appearance: none;
-      &::-ms-expand{ display:none; } // "appearance" in Internet Explorer 10+
-    }
-
-    .balancebox {
-      padding: 5px;
-      @media (max-width: @screen-xs-max) {
-        text-align: center;
-      }
-      .lbl {
-        font-size   : 1.2em;
-        font-family : OpenSansBold;
-
-        .desc {
-          color: @darkgray;
-          font: 12px OpenSansLight;
-        }
-      }
-
-      .amountDecimal {
-        color: @lightgreen;
-        font-size: 85%;
-      }
-      
-      .amount {
-        color: @darkgreen;
-
-        .fraction {
-          font-family: OpenSansLight;
-          color: @lightgreen;
-        }
-
-        .currency {
-          font-family: OpenSansLight;
-          margin-left: 15px;
-        }
-      }
-
-      .total {
-        margin: 10px 0;
-        font-size: 45px;
-
-        .fraction {
-          font-size: 30px;
-        }
-
-        select.currency {
-          font-size: 20px;
-          .flat-select;
-        }
-      }
-
-      .pending {
-        margin: 10px 0;
-
-        .lbl {
-          font-size: 12px;
-          color: @darkgray;
-          font: 12px OpenSansLight;
-        }
-
-        .amount {
-          font-size: 24px;
-
-          .fraction {
-            font-size: 18px;
-          }
-
-          .currency {
-            font-size: 14px
-          }
-        }
-      }
-    }
-
-    .trendbox {
-      padding: 5px;
-
-      .lbl {
-        .balancebox > .lbl;
-      }
-
-      .trend {
-        margin: 10px 0;
-        font-size: 45px;
-
-        .positive { color: @darkgreen; }
-        .equal { color: @darkblue; }
-        .negative { color: @midred; }
-
-        select.trendspan {
-          font-family: OpenSansLight;
-          margin-left: 15px;
-          font-size: 16px;
-
-          .flat-select;
-        }
-      }
-    }
-
-    .funding-options {
-      border-left: 1px solid @midgray;
-      min-height: 220px;
-      padding: 10px 30px;
-
-      .manual {
-        display: block;
-        font: 12px OpenSansLight;
-      }
-    }
-
-    @media (max-width: @screen-xs-max) {
-      .funding-options {
-        border-left: none;
-        border-top: 1px solid @midgray;
-        min-height: 0;
-      }
-    }
-  }
-
   .currency-summary {
     font-size: 18px;
 
@@ -619,7 +310,7 @@
 
       .lbl, .balance {
         color: @black;
-        line-height: 60px;
+        line-height: 50px;
 
         a {
           display: block;
@@ -697,6 +388,7 @@
       color: @color-xsn;
     }
   }
+
   .address-info {
     padding-top: 10px;
     padding-bottom: 10px;
@@ -717,10 +409,10 @@
   .component {
     font-family: OpenSansLight;
     font-size: 16px;
-    line-height: 35px;
+    line-height: 25px;
     color: @darkgray;
-    padding-top: 5px;
-    padding-bottom: 5px;
+    padding: 5px 0;
+    margin: 0 0;
     border-top: 1px solid @midgray;
 
     .transfer {
@@ -861,6 +553,10 @@
   #trustForm {
     margin-bottom: 20px;
 
+    .help-icon {
+      margin-left: 5px;
+    }
+
     .verifying {
       margin-top: 20px;
       margin-bottom: 20px;
@@ -872,9 +568,6 @@
     }
 
     .allow-rippling{
-      & > label, & > i {
-        float: left;
-      }
       @media (max-width: @screen-xs-max){
         .checkbox {
           padding-left: 0;
@@ -883,18 +576,15 @@
           }
         }     
       }
-      & > i {
-        float: left;
-        margin: -4px 0 0 5px;
-        @media (max-width: @screen-xs-max) {
-          margin: -6px 0 0 5px;
-        }
-      }
     }
   }
 
   .currencyBox {
     margin: 0 0 30px;
+  }
+
+  .trustLineEdit {
+    margin-top: -10px;
   }
 
   .editBox {
@@ -1017,22 +707,6 @@
 
   .danger {
     line-height: 42px;
-  }
-}
-
-#t-options {
-  form .row {
-    margin-bottom: 10px;
-  }
-  .errorGroup {
-    height: auto;
-  }
-  .tracking {
-    margin: 0 10px 0 0;
-  }
-
-  .btn-block {
-    margin-bottom: 20px;
   }
 }
 
@@ -1182,10 +856,11 @@
           @media (max-width: @screen-xs-max) {
             font-size: 11px;
           }
-          & > span {
+          & .type, & .i, & .dt, & .desc {
             display: inline-block;
             line-height: 22px;
-            padding: 9px 0;
+            padding-top: 5px;
+            padding-bottom: 5px;
             vertical-align: top;
           }
 
@@ -1229,16 +904,12 @@
           width: 170px;
         }
 
-        .desc {
-
-        }
-
         .effects > li > span {
           font-size: 12px;
         }
 
         .details {
-          padding: 10px 0;
+          padding: 5px 0;
           @media (max-width: @screen-xs-max) {
             font-size: 12px;
           }
@@ -1263,18 +934,16 @@
               }
 
               .description {
-                width: 25%;
+                width: 18%;
               }
               .issuer {
-                width: 35%;
+                width: 44%;
               }
               .amount {
-                width: 20%;
-                text-align: right;
+                width: 18%;
               }
               .balance {
-                width: 20%;
-                text-align: right;
+                width: 18%;
               }
             }
 
@@ -1322,7 +991,7 @@
               float: left;
             }
             .addLink {
-              float: right;
+              float: left;
             }
 
             @media (max-width: 600px) {
@@ -1429,7 +1098,16 @@
       list-style-type: none;
     }
 
+    .invoiceId {
+      padding: 0;
+      list-style-type: none;
+    }
+
     label[for=send_dt] {
+      margin-right: 20px;
+    }
+
+    label[for=invoice_id] {
       margin-right: 20px;
     }
   }
@@ -1695,7 +1373,7 @@
 
 }
 
-#t-advanced, #t-settingsgateway {
+#t-advanced, #t-accountflags, #t-coldwalletsettings {
   .settingPage a {
     display: block;
     padding: 10px;
@@ -1708,6 +1386,19 @@
       text-decoration: none;
       background: @midblue;
     }
+  }
+
+  .help-icon {
+    padding-left: 5px;
+    color: @black;
+  }
+
+  .accountflags-form-row {
+    padding-bottom: 5px;
+  }
+
+  .onlineCheckbox {
+    text-align: center;
   }
 
   #maxnetworkfeeForm {
@@ -1735,26 +1426,8 @@
     padding-right: 0px;
   }
 
-  .port{
-    padding-left: 0px;
-  }
-
-  .portNumber{
-    padding-left: 10px;
-    @media (max-width: @screen-xs-max) {
-      padding-left: 0;
-    }
-  }
-
   div.section {
     padding-bottom: 20px;
-  }
-
-  div.part {
-    padding-top: 10px;
-    a {
-      float: right;
-    }
   }
 
   #save {
@@ -1785,6 +1458,9 @@
     width: 100%;
     margin-top: 20px;
   }
+  #gateways {
+    padding-top: 0px;
+    }
 
   #servers {
     padding-top: 0px;
@@ -1809,6 +1485,7 @@
     }
     .server-row-form {
       border-top: 1px solid #ccccca;
+      padding-top: 10px;
       margin-bottom: 10px;
       .descriptor {
         border: 0;
@@ -1832,23 +1509,6 @@
       line-height: 28px;
     }
 
-  }
-
-  #secureSocket {
-    padding-left: 0px;
-    padding-right: 0px;
-    @media (max-width: @screen-xs-max) {
-        padding-left: 15px;
-    }
-    &.editable {
-      line-height: 35px;
-      // padding-left: 15px;
-     
-    }
-    .helperInput {
-      // padding-top: 7px;
-      line-height: 40px;
-    }
   }
 
   #renameForm {
@@ -1877,57 +1537,6 @@
     }
     .btn:last-child {
       .border-radius(4px, 0, 0, 0);
-    }
-  }
-
-  #add_button, #cancel_button {
-    float: right;
-  }
-
-  ul.inline {
-    margin: 0;
-    padding: 0;
-
-    .label {
-      color: @darkgray;
-      text-align: left;
-    }
-    .value {
-      font-weight: bold;
-    }
-
-    li {
-      display: inline-block;
-      font-size: 12px;
-
-      .icon {
-        margin: 0 0 0 3px;
-      }
-      .up {
-        color: @darkgreen;
-      }
-      .down {
-        color: @midred;
-      }
-      @media (max-width: @screen-xs-max) {
-        padding-left: 0;
-      }
-       @media (max-width: @screen-sm-max) {
-        padding-left: 0;
-      }
-    }
-
-    &.issuers {
-      .label {
-        width: 120px;
-      }
-      .value {
-        margin-right: 15px;
-        @media (max-width: @screen-xs-max) {
-          margin-right: 0;
-          padding-right: 15px;
-        }
-      }
     }
   }
 
@@ -2057,7 +1666,6 @@
     .message {
       color: @midgreen;
       height: 40px;
-      line-height: 40px;
     }
     .btns-row {
       .btns-wrapper {
@@ -2358,285 +1966,9 @@ html.t-trade header nav ul > li.active#nav-advanced > a:after {
   }
 }
 
-#t-fund, #t-xrp, #t-trust {
-
-  .currencies a {
-    display: block;
-    padding: 10px;
-    border-radius: 2px;
-    margin: 0 0 3px;
-    background: @lightgray;
-
-    &:hover, &.active {
-      color: @lightgray;
-      text-decoration: none;
-      background: @midblue;
-    }
-  }
-}
-
-#t-fund, #t-xrp {
-  .btc-tab-description {
-    margin-bottom: 20px;
-    h4 {
-      font-family: 'Open Sans', sans-serif;
-      font-size: 12px;
-      font-weight: 600;
-      color: #1e1e1e;
-      text-transform: uppercase;
-    }
-    .description {
-      font-size: 12px;
-    }
-    .connect {
-      line-height: 42px;
-      font-size: 12px;
-      i {
-        padding-right: 4px;
-      }
-    }
-  }
-
-  .currency {
-    font-size: 18px;
-    margin: 0 0 0 5px;
-    color: darken(@darkgray, 15%);
-  }
-
-  .list{
-    border-left: 1px solid @midgray;
-  }
-
-  .lbl {
-    font-size   : 1.2em;
-    font-family : OpenSansBold;
-
-    .desc {
-      color: @darkgray;
-      font: 12px OpenSansLight;
-    }
-  }
-
-  .amount {
-    color: @darkblue;
-
-    .fraction {
-      font-family: OpenSansLight;
-      color: @lightgreen;
-    }
-
-    .currency {
-      font-family: OpenSansLight;
-      margin-left: 15px;
-    }
-  }
-
-  .total {
-    margin: 10px 0;
-    font-size: 15px;
-
-    .fraction {
-      font-size: 30px;
-    }
-
-    select.currency {
-      font-size: 20px;
-      padding-right: 20px;
-      border: none;
-      background: transparent url('../img/dropdown_arrow.svg') no-repeat;
-      background-position: center right;
-      appearance: none;
-      moz-appearance: none;
-      -webkit-appearance: none;
-
-    }
-  }
-
-
-  .nameLine {
-    margin: 0 0 20px;
-    padding: 0 0 20px;
-    font: 20px OpenSansLight;
-    border-bottom: 1px solid @midgray;
-
-    .name {
-      font-weight: bold;
-    }
-  }
-
-
-  .fundXrp {
-    .address {
-      font-size: 14px;
-    }
-  }
-
-  .fundBtc {
-    .action {
-      margin-top: 20px;
-    }
-  }
-}
-
-#t-account, #t-public {
-
-  .accountPage a {
-    display: block;
-    padding: 10px;
-    border-radius: 2px;
-    margin: 0 0 3px;
-    background: @lightgray;
-
-    &:hover, &.active {
-      color: @lightgray;
-      text-decoration: none;
-      background: @midblue;
-    }
-  }
-
-  #open_name_change {
-    float: left;
-    padding-left: 20px;
-  }
-
-  .nameLine {
-    margin: 0 0 20px;
-    padding: 0 0 20px;
-    font: 20px OpenSansLight;
-
-    .name {
-      font-weight: bold;
-    }
-  }
-
-  .descriptor {
+#t-coldwallet {
+  .available, .reserve {
     color: @darkgray;
-    margin: 0 0 20px;
-    border-top: 1px solid @midgray;
-    padding-top: 20px;
-    color: @darkgray;
-  }
-
-  .edit {
-    padding-top: 0px;
-  }
-
-  .username {
-    color: @black;
-    line-height: 42px;
-    font-family: OpenSansRegular;
-    @media (max-width: @screen-xs-max) {
-      line-height: 36px;
-    }
-  }
-
-  
-
-  #nameChangeForm {
-    margin: 10px 0 0 0;
-
-  }
-
-  .auth-form-container {
-    padding-bottom: 0px;
-  }
-  .public-account-row {
-    margin-bottom: 10px;
-  }
-  #renameForm {
-    width: 400px;
-    padding-top: 20px;
-    padding-bottom: 30px;
-
-    .form-group {
-
-
-      label {
-        color: @darkgray;
-      }
-
-      label[for=password]{
-        padding-top: 20px;
-      }
-      .input-group {
-        .input-group-addon:first-child {
-          background: @midblue;
-          border-color: @midblue;
-          color: @white;
-
-        }
-      }
-    }
-    @media (max-width: @screen-xs-max) {
-      width: 100%;
-      display: inline-block;
-      padding-right: 15px;
-      padding-left: 15px;
-      #open_name_change {
-        padding-left: 0;
-      }
-    }
-  }
-
-  .sessionUnlock {
-    margin-left: 15px;
-
-      label {
-        margin-top: 15px
-      }
-
-      button.spinner {
-        padding-left:0;
-      }
-  }
-
-}
-
-
-#t-usd {
-  .button-group {
-    text-align: center;
-  }
-  button {
-    text-align: center;
-    border: 1px solid @midblue;
-    font-weight: bold;
-    background: @midblue;
-    color: @white;
-
-    &:hover, &.active {
-      background: @midgreen;
-      border-color: @midgreen;
-    }
-  }
-
-  .description {
-    padding-bottom: 20px;
-
-  }
-
-  h5 {
-    font-weight: bold;
-  }
-
-  .ssText {
-    font-size: 12px;
-  }
-
-  .nameLine {
-    padding: 0 0 20px;
-    font: 20px OpenSansLight;
-
-    .name {
-      font-weight: bold;
-    }
-
-
-  }
-
-  #knoxFrame {
-    height: 600px;
-    border: 0;
   }
 }
 

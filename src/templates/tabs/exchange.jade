@@ -7,20 +7,15 @@ section.col-xs-12.content(ng-controller="ExchangeCtrl")
 
   group.disconnected(ng-hide="!connected || loadState.account")
     div(id="section_loader")
-      img(src="img/sections.png", class="loader")
       div(class="loading_sections", l10n) Loading... 
 
   div(ng-show="!loadingAccount && !account.Balance && loadState.account && connected")
-    include ../tabs/banner/unfunded
-    p.literal(l10n="err-you-must-be-funded-before-you-can-exchange-money") You have to be funded before you can submit an order.
-
-  //- Show message if account has not been funded yet.
-  .unfunded(ng-show="!account.Balance && connected")
-    p.literal(l10n) You have to be funded before you can convert    
+    include ../tabs/banner/_unfunded
+    p.literal(l10n="err-you-must-be-funded-before-you-can-exchange-money") You have to be funded before you can convert    
 
   //- Connected
 
-  form.mode-form#exchangeForm(name="exchangeForm", ng-show='mode=="form" && account.Balance', ng-submit='exchange_prepared()')
+  form.mode-form#exchangeForm(name="exchangeForm", ng-show='mode=="form" && account.Balance && connected', ng-submit='exchange_prepared()')
     .form-group
       label(for='amount', l10n="Receive (amount)") Receive
       .row.row-padding-small.amount
@@ -50,7 +45,7 @@ section.col-xs-12.content(ng-controller="ExchangeCtrl")
       //- TODO how high trust?
       p.literal(ng-show="exchange.path_status == 'no-path' && exchange.currency_code != 'XRP'", l10n)
         | Cannot convert to {{exchange.amount}} {{exchange.currency_name}}. Please make sure your account has enough funds, and a&#32;
-        a(href="https://support.ripplelabs.com/hc/en-us/categories/200194186-Gateways", target="_blank") connection 
+        a(href="https://ripple.com/knowledge_center/gateways/", target="_blank") connection 
         |  to a {{exchange.currency_name}} gateway.
       p.literal(ng-show="exchange.path_status == 'no-path' && exchange.currency_code == 'XRP'", l10n)
         | Sorry! Cannot convert {{exchange.amount}} {{exchange.currency_name}}. Please make sure your account has enough funds.
@@ -62,22 +57,22 @@ section.col-xs-12.content(ng-controller="ExchangeCtrl")
       .row.row-padding-small.alternatives
         .col-xs-12.col-sm-6.col-md-4(ng-repeat="alt in exchange.alternatives")
           .am
-            span.amnt {{alt.amount | rpamount:{rel_precision: 4, rel_min_precision: 2} }}
-            span(ng-hide="alt.amount.is_native() || alt.amount.issuer().to_json() == account.Account")
+            span.amnt {{alt.amount | rpamount:{precision: 20, min_precision: 6, max_sig_digits: 20} }}
+            span(ng-hide="alt.amount.is_native() || alt.amount.issuer() == account.Account")
               span.issuer(
-                rp-pretty-issuer="alt.amount.issuer().to_json()"
+                rp-pretty-issuer="alt.amount.issuer()"
                 rp-pretty-issuer-contacts="userBlob.data.contacts"
                 rp-pretty-issuer-or-short)
             span.currency  {{alt.amount | rpcurrency }}
             .ex (
-              span.rate {{alt.rate | rpamount:{rel_precision: 4, rel_min_precision: 2} }}
+              span.rate {{alt.rate | rpamount:{precision: 20, min_precision: 6, max_sig_digits: 20} }}
               span.pair {{exchange.currency_code}}/{{alt.amount | rpcurrency}}
               | )
           button.btn.btn-block.btn-success(type="submit", ng-disabled='exchangeForm.$invalid', ng-click="exchange.alt = alt", l10n)
             | Exchange {{ alt.amount | rpcurrency }}
-            span(ng-hide="alt.amount.is_native() || alt.amount.issuer().to_json() == account.Account")  (
+            span(ng-hide="alt.amount.is_native() || alt.amount.issuer() == account.Account")  (
               span.issuer(
-                rp-pretty-issuer="alt.amount.issuer().to_json()"
+                rp-pretty-issuer="alt.amount.issuer()"
                 rp-pretty-issuer-contacts="userBlob.data.contacts"
                 rp-pretty-issuer-or-short)
               | )
@@ -99,15 +94,15 @@ section.col-xs-12.content(ng-controller="ExchangeCtrl")
     span(l10n)
       p.literal(l10n-inc) You are exchanging
       p.amount_feedback
-        span.value {{exchange.alt.amount | rpamount}}&#32;
+        span.value {{exchange.alt.amount | rpamount:{precision: 20, min_precision: 6, max_sig_digits: 20} }}&#32;
         span.currency {{exchange.alt.amount | rpcurrency}}
       p.literal(l10n-inc) to
       p.amount_feedback
-        span.value {{exchange.amount_feedback | rpamount}}&#32;
+        span.value {{exchange.amount_feedback | rpamount:{precision: 20, min_precision: 6, max_sig_digits: 20} }}&#32;
         span.currency {{exchange.amount_feedback | rpcurrency}}
       p.literal(l10n-inc) You will pay at most
       p.amount_feedback
-        span.value {{exchange.alt.amount | rpamount}}&#32;
+        span.value {{exchange.alt.amount | rpamount:{precision: 20, min_precision: 6, max_sig_digits: 20} }}&#32;
         span.currency {{exchange.alt.amount | rpcurrency}} &#32;
         span &plusmn; 1%
       p.literal(l10n-inc) Are you sure?
@@ -123,19 +118,19 @@ section.col-xs-12.content(ng-controller="ExchangeCtrl")
   //- N4. Waiting for transaction result page
 
   group.mode-sending(ng-show='mode=="sending" && account.Balance')
-    include ../messages/sendconvert/waiting
+    include ../messages/sendconvert/_waiting
     hr
     //- p: button.btn.btn-default(ng-click='reset()', l10n) Stop waiting
 
   //- N5. Error page
   group.mode-error(ng-show='mode=="error" && account.Balance')
-    include ../messages/sendconvert/localerror
+    include ../messages/sendconvert/_localerror
     p: button.btn.btn-link.btn-default(ng-click='cancelConfirm()', l10n) cancel
 
   //- N6. Confirmed page 
 
   group.mode-status(ng-show='mode=="status" && account.Balance')
-    include ../messages/sendconvert/confirmation
+    include ../messages/sendconvert/_confirmation
     group.actions
       hr
       div(class="actionLink")

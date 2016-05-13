@@ -143,8 +143,8 @@ exports.resolveContact = function (contacts, value)
     }
   }
 
-  if (ripple.UInt160.is_valid(value)) {
-    return ripple.UInt160.json_rewrite(value);
+  if (RippleAddressCodec.isValidAddress(value)) {
+    return value;
   }
 
   return '';
@@ -173,7 +173,7 @@ exports.queryFromContacts = function (contacts)
     _.map(contacts, function (entry) {
       return {
         name: entry.name,
-        additional: entry.view || entry.address
+        additional: entry.address
       }
     })
   );

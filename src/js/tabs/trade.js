@@ -114,15 +114,15 @@ TradeTab.prototype.angular = function(module)
 
     $scope.reset = function () {
       $scope.executedOnOfferCreate = 'none';
-      var pair = store.get('ripple_trade_currency_pair') || $scope.pairs_all[0].name;
+      var pair = store.get('ripple_currency_pair') || $scope.pairs_all[0].name;
 
       // Decide which listing to show
       var listing;
       if ($scope.order) {
         listing = $scope.order.listing;
       }
-      else if(store.get('ripple_trade_listing')) {
-        listing = store.get('ripple_trade_listing');
+      else if(store.get('ripple_listing')) {
+        listing = store.get('ripple_listing');
       }
       else {
         listing = 'orderbook';
@@ -191,7 +191,7 @@ TradeTab.prototype.angular = function(module)
       $scope.order.listing = listing;
 
       if (!store.disabled) {
-        store.set('ripple_trade_listing', listing);
+        store.set('ripple_listing', listing);
       }
     };
 
@@ -240,9 +240,9 @@ TradeTab.prototype.angular = function(module)
     function getOrderCurrency(entry) {
       if (!entry) return '';
       var first_currency = entry.first.currency().to_json();
-      var first_issuer = entry.first.issuer().to_json();
+      var first_issuer = entry.first.issuer();
       var second_currency = entry.second.currency().to_json();
-      var second_issuer = entry.second.issuer().to_json();
+      var second_issuer = entry.second.issuer();
 
       var first = first_currency === 'XRP'
         ? 'XRP'
@@ -270,9 +270,9 @@ TradeTab.prototype.angular = function(module)
       var order = $scope.order;
       currencyPairChangedByNonUser = true;
       order.first_currency = this.entry.first.currency().to_json();
-      order.first_issuer = this.entry.first.issuer().to_json();
+      order.first_issuer = this.entry.first.issuer();
       order.second_currency = this.entry.second.currency().to_json();
-      order.second_issuer = this.entry.second.issuer().to_json();
+      order.second_issuer = this.entry.second.issuer();
 
       var first = order.first_currency === 'XRP'
         ? 'XRP'
@@ -300,10 +300,14 @@ TradeTab.prototype.angular = function(module)
       var seq   = this.entry ? this.entry.seq : this.order.Sequence;
       var order = this;
       var tx    = $network.remote.transaction();
+      var options = {
+        account: id.account,
+        offer_sequence: seq
+      };
 
       $scope.cancelError = null;
 
-      tx.offer_cancel(id.account, seq);
+      tx.offerCancel(options);
       tx.on('success', function() {
       });
 
@@ -347,11 +351,13 @@ TradeTab.prototype.angular = function(module)
       var order = $scope.order[type];
       var tx = $network.remote.transaction();
 
-      tx.offer_create(
-        id.account,
-        order.buy_amount,
-        order.sell_amount
-      );
+      var options = {
+        src: id.account,
+        buy: order.buy_amount,
+        sell: order.sell_amount
+      };
+
+      tx.offerCreate(options);
 
       // Add memo to tx
       tx.addMemo('client', 'rt' + $rootScope.version);
@@ -359,7 +365,7 @@ TradeTab.prototype.angular = function(module)
       // Sets a tfSell flag. This is the only way to distinguish
       // sell offers from buys.
       if (type === 'sell')
-        tx.set_flags('Sell');
+        tx.setFlags('Sell');
 
       tx.on('proposed', function (res) {
 
@@ -373,19 +379,21 @@ TradeTab.prototype.angular = function(module)
 
         var tx = rewriter.processTxn(res, res.metadata, id.account);
 
-        for (var i = 0; i < tx.effects.length; i++) {
-          var messageType = tx.effects[i].type;
+        if (tx.effects) {
+          for (var i = 0; i < tx.effects.length; i++) {
+            var messageType = tx.effects[i].type;
 
-          switch (messageType) {
-            case 'trust_change_balance':
-              $scope.executedOnOfferCreate = 'all';
-              break;
-            case 'offer_partially_funded':
-              $scope.executedOnOfferCreate = 'partial';
-              break;
-            default:
-              $scope.executedOnOfferCreate = 'none';
-              break;
+            switch (messageType) {
+              case 'trust_change_balance':
+                $scope.executedOnOfferCreate = 'all';
+                break;
+              case 'offer_partially_funded':
+                $scope.executedOnOfferCreate = 'partial';
+                break;
+              default:
+                $scope.executedOnOfferCreate = 'none';
+                break;
+            }
           }
         }
 
@@ -493,6 +501,10 @@ TradeTab.prototype.angular = function(module)
     };
 
     $scope.fatFingerCheck = function(type) {
+      // Skip the fat finger check if there's no book
+      if (type === 'buy' && !$scope.book.bids[0]) return;
+      else if (type === 'sell' && !$scope.book.asks[0]) return;
+
       var order = $scope.order[type];
       var fatFingerMarginMultiplier = 1.1;
 
@@ -550,7 +562,7 @@ TradeTab.prototype.angular = function(module)
         if (!order.price_amount.is_native()) {
           var price = order.price_amount.to_human({group_sep: false});
           var currency = order.price_amount.currency().to_json();
-          var issuer = order.price_amount.issuer().to_json();
+          var issuer = order.price_amount.issuer();
 
           // use replace(/,/g,'') until ripple lib fixed
           order.first_amount = Amount.from_json(order.second_amount.to_text_full().replace(/,/g, '')).ratio_human(Amount.from_json(price + '/' + currency + '/' + issuer), {reference_date: new Date()});
@@ -582,11 +594,11 @@ TradeTab.prototype.angular = function(module)
     function updateSettings() {
       var order = $scope.order;
       var pair = order.currency_pair;
-      
+
       if (!store.disabled) {
-        store.set('ripple_trade_currency_pair', pair);
+        store.set('ripple_currency_pair', pair);
       }
-      
+
       if ("string" !== typeof pair) pair = "";
       pair = pair.split('/');
 
@@ -624,14 +636,9 @@ TradeTab.prototype.angular = function(module)
         }
       }
 
-      // var first_currency = order.first_currency = ripple.Currency.from_json(pair[0]);
-      // var second_currency = order.second_currency = ripple.Currency.from_json(pair[1]);
-      var first_issuer = ripple.UInt160.from_json(order.first_issuer);
-      var second_issuer = ripple.UInt160.from_json(order.second_issuer);
-
       // Invalid issuers or XRP/XRP pair
-      if ((!first_currency.is_native() && !first_issuer.is_valid()) ||
-          (!second_currency.is_native() && !second_issuer.is_valid()) ||
+      if ((!first_currency.is_native() && !RippleAddressCodec.isValidAddress(order.first_issuer)) ||
+          (!second_currency.is_native() && !RippleAddressCodec.isValidAddress(order.second_issuer)) ||
           (first_currency.is_native() && second_currency.is_native())) {
         order.valid_settings = false;
         return;
@@ -815,6 +822,8 @@ TradeTab.prototype.angular = function(module)
      * Load orderbook
      */
     function loadOffers() {
+      if ($scope.readOnly) return;
+
       // Make sure we unsubscribe from any previously loaded orderbook
       if ($scope.book && "function" === typeof $scope.book.unsubscribe) {
         $scope.book.unsubscribe();
@@ -826,7 +835,7 @@ TradeTab.prototype.angular = function(module)
       }, {
         currency: ($scope.order.second_currency.has_interest() ? $scope.order.second_currency.to_hex() : $scope.order.second_currency.get_iso()),
         issuer: $scope.order.second_issuer
-      }, $scope.address);
+      });
 
       $scope.orderbookState = 'ready';
     }
@@ -1036,7 +1045,7 @@ TradeTab.prototype.angular = function(module)
         routeCurrencies[prefix] = $routeParams[prefix].match(/^(\w{3})/);
 
         if (routeIssuers[prefix]) {
-          if (ripple.UInt160.is_valid(routeIssuers[prefix][1])) {
+          if (RippleAddressCodec.isValidAddress(routeIssuers[prefix][1])) {
             $scope.order[prefix + '_issuer'] = routeIssuers[prefix][1];
           } else {
             $location.path('/trade');

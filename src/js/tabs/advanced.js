@@ -20,11 +20,13 @@ AdvancedTab.prototype.generateHtml = function ()
 
 AdvancedTab.prototype.angular = function(module)
 {
-  module.controller('AdvancedCtrl', ['$scope', '$rootScope', 'rpId', 'rpKeychain',
-                                    function ($scope, $rootScope, $id, $keychain)
+  module.controller('AdvancedCtrl', ['$scope', '$rootScope', '$route', 'rpId',
+                                    function ($scope, $rootScope, $route, $id)
   {
-    if (!$id.loginStatus) $id.goId();
-
+    if (!$id.loginStatus) {
+      $scope.showBanner = true;
+      $scope.userCredentials.account = "";
+    }
     // XRP currency object.
     // {name: "XRP - Ripples", order: 146, value: "XRP"}
     var xrpCurrency = Currency.from_json("XRP");
@@ -37,7 +39,6 @@ AdvancedTab.prototype.angular = function(module)
 
     $scope.options = Options;
     $scope.optionsBackup = $.extend(true, {}, Options);
-    $scope.passwordProtection = !$scope.userBlob.data.persistUnlock;
     $scope.editBlob = false;
     $scope.editMaxNetworkFee = false;
     $scope.editAcctOptions = false;
@@ -45,23 +46,24 @@ AdvancedTab.prototype.angular = function(module)
 
     $scope.saveSetings = function() {
       // force serve ports to be number
-      _.each($scope.options.server.servers, function(s) {
+      _.forEach($scope.options.server.servers, function(s) {
         s.port = +s.port;
       });
       // Save in local storage
       if (!store.disabled) {
         store.set('ripple_settings', angular.toJson($scope.options));
       }
-    }
+    };
 
     $scope.saveBlob = function() {
 
       $scope.saveSetings();
 
       $scope.editBlob = false;
+      $scope.saved = false;
 
       // Reload
-      location.reload();
+      $route.reload();
     };
 
     $scope.saveMaxNetworkFee = function () {
@@ -74,7 +76,8 @@ AdvancedTab.prototype.angular = function(module)
       $scope.editMaxNetworkFee = false;
 
       // Reload
-      location.reload();
+      $scope.$emit('serverChange', $scope.options.server);
+      $route.reload();
     };
 
     $scope.cancelEditMaxNetworkFee = function () {
@@ -86,19 +89,6 @@ AdvancedTab.prototype.angular = function(module)
       $scope.editAcctOptions = false;
     };
 
-    $scope.$on('$blobUpdate', function(){
-      $scope.passwordProtection = !$scope.userBlob.data.persistUnlock;
-    });
-    
-    $scope.setPasswordProtection = function () {
-      $keychain.setPasswordProtection(!$scope.passwordProtection, function(err, resp){
-        if (err) {
-          $scope.passwordProtection = !$scope.PasswordProtection;
-          //TODO: report errors to user
-        }
-      });
-    };
-
     // Add a new server
     $scope.addServer = function () {
       // Create a new server line
@@ -108,12 +98,12 @@ AdvancedTab.prototype.angular = function(module)
       // Set editing to true
       $scope.editing = true;
       
-    }
+    };
 
   }]);
 
-  module.controller('ServerRowCtrl', ['$scope',
-    function ($scope) {
+  module.controller('ServerRowCtrl', ['$scope', '$route',
+    function ($scope, $route) {
       $scope.editing = $scope.server.isEmptyServer;
 
         // Delete the server
@@ -121,11 +111,14 @@ AdvancedTab.prototype.angular = function(module)
         $scope.options.server.servers.splice($scope.index,1);
 
         $scope.saveSetings();
-      }
+        if (!$scope.server.isEmptyServer) {
+          $route.reload();
+        }
+      };
 
-      $scope.hasRemove = function () {
+      /*$scope.hasRemove = function () {
         return !$scope.server.isEmptyServer && $scope.options.server.servers.length !== 1;
-      }
+      };*/
 
       $scope.cancel = function () {
         if ($scope.server.isEmptyServer) {
@@ -136,11 +129,11 @@ AdvancedTab.prototype.angular = function(module)
         $scope.editing = false;
         $scope.server = $.extend({ '$$hashKey' : $scope.server.$$hashKey }, $scope.optionsBackup.server.servers[$scope.index]);
         Options.server.servers[$scope.index] = $.extend({}, $scope.optionsBackup.server.servers[$scope.index]);
-      }
+      };
 
       $scope.noCancel = function () {
         return $scope.server.isEmptyServer && $scope.options.server.servers.length === 1;
-      }
+      };
 
       $scope.save = function () {
         $scope.server.isEmptyServer = false;
@@ -148,11 +141,68 @@ AdvancedTab.prototype.angular = function(module)
 
         $scope.saveSetings();
 
+        $scope.$emit('serverChange', $scope.options.server);
+
           // Reload
-        location.reload();
+        $route.reload();
       };
     }
   ]);
+
+  module.controller('ProxyCtrl', ['$scope', '$route', function($scope, $route) {
+    $scope.init = function() {
+      var proxy = /(https?):\/\/(([^:]*):([^@]*)@)?([^:]*)(:(\d+))?/g.exec(Options.server.proxy);
+
+      $scope.proxy = {};
+
+      if (proxy) {
+        $scope.proxy = {
+          secure: proxy[1] === 'https',
+          host: proxy[5],
+          port: proxy[7],
+          auth: !!(proxy[3] && proxy[4]),
+          username: proxy[3],
+          password: proxy[4]
+        };
+      }
+    };
+
+    $scope.clear = function() {
+      $scope.save(true);
+    };
+
+    $scope.save = function(clear) {
+      if (clear) {
+        delete Options.server.proxy;
+      } else {
+        Options.server.proxy =
+          ($scope.proxy.secure ? 'https' : 'http') + '://'
+            + ($scope.proxy.auth && $scope.proxy.username && $scope.proxy.password
+              ? $scope.proxy.username + ':' + $scope.proxy.password + '@' : '')
+            + $scope.proxy.host
+            + ($scope.proxy.port ? ':' + $scope.proxy.port : '');
+      }
+
+      // Save in local storage
+      if (!store.disabled) {
+        store.set('ripple_settings', angular.toJson(Options));
+      }
+
+      // Reload
+      $route.reload();
+    };
+
+    $scope.cancel = function() {
+      $scope.init();
+      $scope.close();
+    };
+
+    $scope.close = function() {
+      $scope.editProxy = false;
+    };
+
+    $scope.init();
+  }]);
 };
 
 module.exports = AdvancedTab;

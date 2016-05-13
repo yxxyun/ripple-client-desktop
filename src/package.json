@@ -1,12 +1,16 @@
 {
   "main": "index.html",
-  "name": "RippleClient",
-  "version": "1.1.0",
-  "description": "Ripple Client",
+  "name": "RippleAdminConsole",
+  "version": "1.4.0",
+  "description": "Ripple Admin Console",
+  "single-instance": false,
   "window": {
     "frame": true,
     "toolbar": false,
-    "width": 1100,
-    "height": 650
+    "width": 1024,
+    "height": 650,
+    "min_width": 768,
+    "min_height": 100,
+    "title": "Ripple Admin Console"
   }
 }

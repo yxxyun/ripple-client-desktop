@@ -12,6 +12,8 @@ section.col-xs-12.content(ng-controller="RegisterCtrl")
 
       .form-group
         a.btn.btn-block.btn-default(ng-click='mode="register_with_secret"', l10n) Create a new account with a secret key
+    .row
+      button.btn.btn-block.btn-cancel(ng-click='goTo("/login")', l10n) Back to home
 
   .row.auth-form-container.col-sm-offset-2.col-sm-8.col-md-offset-3.col-md-6(ng-show='mode=="register_empty_wallet"')
     .auth-form-wrapper
@@ -28,17 +30,17 @@ section.col-xs-12.content(ng-controller="RegisterCtrl")
           input.form-control#register_password(
           name='register_password1', type='password', autocomplete="off"
           ng-model="password1"
-          rp-strong-password, required, rp-same-in-set="passwordSet", rp-focus)
+          rp-strong-password, required, rp-same-in-set="password2", rp-focus)
           p(ng-show="strength=='weak'")
             span(l10n) Your password is weak. It is not a mix of letters, numbers and symbols.
-        .form-group(ng-class="{'field-error': registerForm.register_password1.$error.rpSameInSet && registerForm.register_password2.$dirty}")
+        .form-group(ng-class="{'field-error': registerForm.register_password2.$error.rpSameInSet && registerForm.register_password2.$dirty}")
             label(for='register_password2', l10n) Confirm password
             input.form-control#register_password2(
             name='register_password2', autocomplete="off"
             type='password'
             ng-model="password2"
-            required, rp-same-in-set="passwordSet")
-            p(ng-show="registerForm.register_password1.$error.rpSameInSet && registerForm.register_password2.$dirty")
+            required, rp-same-in-set="password1")
+            p(ng-show="(registerForm.register_password2.$error.rpSameInSet && registerForm.register_password2.$dirty) && !registerForm.register_password1.$error.rpStrongPassword")
               span(l10n) Passwords do not match
           div(ng-show="")
         .form-group
@@ -69,7 +71,7 @@ section.col-xs-12.content(ng-controller="RegisterCtrl")
           rp-popover-trigger="hover"
           l10n-data-content="This will create a new Ripple account from your secret key.")
 
-          input.form-control#secretKey(type="text", name="secretKey"
+          input.form-control#secretKey(type="password", name="secretKey"
           ng-model="secretKey", rp-master-key, required, rp-focus)
 
           p(ng-show="useSecretKey.secret.$error.rpMasterKey && registerForm.secret.$dirty")

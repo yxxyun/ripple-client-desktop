@@ -46,6 +46,26 @@ module.controller('NavbarCtrl', ['$scope', '$element', '$compile', 'rpId',
     }
   }
 
+  $scope.copyTooltip = "Click to copy your ripple address";
+  $scope.copyFeedback = null;
+  $scope.copy = function() {
+    angular.element("ul.nav .text-copy-helper").select();
+    document.execCommand('copy');
+    $("li.account").popover('hide');
+    $("li p.navbar-text").fadeOut(100, function() {
+      $scope.copyFeedback = "Copied!";
+      if(!$scope.$$phase) $scope.$apply();
+    }).fadeIn(300, function() {
+      setTimeout(function() {
+        $("li p.navbar-text").fadeOut(300, function() {
+          $scope.copyFeedback = null;
+          if(!$scope.$$phase) $scope.$apply();
+          $(this).fadeIn(0);
+        });
+      }, 500);
+    });
+  }
+
   $scope.$watch('connected', serverStatusUpdate, true);
 
   // Username
@@ -60,12 +80,16 @@ module.controller('NavbarCtrl', ['$scope', '$element', '$compile', 'rpId',
   });
 
   var updateNotifications = function() {
-    if ($scope.events) {
+    if (!$scope.onlineMode) {
+      $scope.notifications = "";
+    }
+    else if ($scope.events) {
       $scope.notifications = $scope.events.slice(0,10);
     }
   };
 
   $scope.$on('$eventsUpdate', updateNotifications);
+  $scope.$watch('onlineMode', updateNotifications, true);
 
   /**
    * Marks all the notifications as seen.
@@ -90,7 +114,7 @@ module.controller('NavbarCtrl', ['$scope', '$element', '$compile', 'rpId',
       $scope.unseenNotifications.count = 0;
 
       // Set seen for all the events
-//      _.each($scope.events, function(event){
+//      _.forEach($scope.events, function(event){
 //        event.unseen = false;
 //      })
     }

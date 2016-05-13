@@ -107,17 +107,6 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
     $scope.$watch('userBlob',function(){
       // XXX Maybe the blob service should handle this stuff?
       $scope.$broadcast('$blobUpdate');
-
-      // XXX What's the equivalent in the new login API?
-      /*
-      if (self.username && self.password) {
-        $oldblob.set(...,
-                  self.username.toLowerCase(), self.password,
-                  $scope.userBlob,function(){
-                    $scope.$broadcast('$blobSave');
-                  });
-      }
-      */
     },true);
 
     $scope.$on('$blobUpdate', function(){
@@ -150,9 +139,9 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
     this.keys = keys;
   };
 
-  Id.prototype.isReturning = function ()
+  Id.prototype.acceptedTou = function ()
   {
-    return !!store.get('ripple_known');
+    return !!store.get('accepted_tou');
   };
 
   Id.prototype.isLoggedIn = function ()
@@ -219,7 +208,6 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
       self.loginStatus = true;
       $scope.$broadcast('$blobUpdate');
 
-      store.set('ripple_known', true);
       callback(null, masterkey);
     });
   };
@@ -294,11 +282,10 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
         store.set('device_id', blob.device_id);
         self.loginStatus = true;
         $scope.$broadcast('$blobUpdate');
-        store.set('ripple_known', true);
 
         if (blob.data.account_id) {
           // Success
-          callback(null);
+          callback(null, blob);
         } else {
           // Invalid blob
           callback(new Error("Blob format unrecognized!"));
@@ -337,7 +324,6 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
       store.set('device_id', options.blob.device_id);
       self.loginStatus = true;
       $scope.$broadcast('$blobUpdate');
-      store.set('ripple_known', true);  
       callback();          
     });
   };
@@ -345,6 +331,7 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
   Id.prototype.logout = function ()
   {
     sessionStorage.auth = '';
+    sessionStorage.authReadOnly = '';
 
     //remove deviceID if remember me is not set
     if (!store.get('remember_me')) {
@@ -358,7 +345,10 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
     this.username = '';
 
     $scope.address = '';
-//    $location.path('/login');
+    if ($scope.readOnly) {
+      delete $scope.readOnly;
+    }
+    $location.path('/login');
 
     // problem?
     // reload will not work, as some pages are also available for guests.
@@ -375,19 +365,27 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
     // Callback is optional
     if ("function" !== typeof callback) callback = $.noop;
 
-    //username = Id.normalizeUsernameForDisplay(username);
-    //password = Id.normalizePassword(password);
-
-    $authflow.unlock(username, password, function (err, resp) {
-      if (err) {
-        callback(err);
-        return;
-      }
-    
-      callback(null, resp.secret);
-    });
+    // Secret is stored in plaintext in memory
+    if ($scope.userBlob.password === password) {
+      callback(null, $scope.userBlob.data.masterkey);
+    } else {
+      callback(new Error('Invalid password'));
+    }
   };
 
+  Id.prototype.enterReadOnlyMode = function (address) {
+    $scope.readOnly = true;
+    $scope.address = address;
+    this.setAccount(address);
+    this.setUsername(address);
+    this.loginStatus = true;
+
+    // For Development
+    if (Options.persistent_auth) {
+      sessionStorage.authReadOnly = address;
+    }
+  };
+  
   /**
    * Go to an identity page.
    *
@@ -413,6 +411,13 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
         return;
       }
 
+      // Read only mode (for development)
+      else if (sessionStorage.authReadOnly) {
+        this.enterReadOnlyMode(sessionStorage.authReadOnly);
+
+        return;
+      }
+
       if (_.size($routeParams)) {
         var tab = $route.current.tabName;
         $location.search('tab', tab);
@@ -420,10 +425,11 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
         return;
       }
 
-      if (this.isReturning()) {
+      if (this.acceptedTou()) {
+        // Should always go to login because that is the home page with the menu items
         $location.path('/login');
       } else {
-        $location.path('/register');
+        $location.path('/tou');
       }
     }
   };

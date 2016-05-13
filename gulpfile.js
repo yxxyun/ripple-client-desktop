@@ -11,8 +11,8 @@ var gulp = require('gulp'),
   NwBuilder = require('nw-builder'),
   runSequence = require('run-sequence'),
 
-  meta = require('./package.json'),
-  languages = require('./l10n/languages.json').active;
+  meta = require('./package.json');
+  //languages = require('./l10n/languages.json').active;
 
 var $ = require('gulp-load-plugins')({
   pattern: ['gulp-*', 'del', 'browser-sync']
@@ -38,11 +38,45 @@ gulp.task('clean:dist', function () {
   $.del.sync([BUILD_DIR + '*']);
 });
 
-gulp.task('bower', function() {
-  return $.bower();
+// Webpack
+gulp.task('webpack:vendor:dev', function() {
+  return gulp.src('src/js/entry/vendor.js')
+    .pipe($.webpack({
+      output: {
+        filename: 'vendor.js'
+      },
+      module: {
+        loaders: [
+          {test: /\.json$/, loader: 'json-loader'},
+          {test: /\.js$/, exclude: /node_modules/, loader: 'babel-loader?optional=runtime'}
+        ]
+      },
+      target: 'node-webkit',
+      cache: true,
+      debug: true
+    }))
+    .pipe(gulp.dest(TMP_DIR + 'js/'))
+    .pipe($.browserSync.reload({stream:true}));
 });
 
-// Webpack
+gulp.task('webpack:vendor:dist', function() {
+  return gulp.src('src/js/entry/vendor.js')
+    .pipe($.webpack({
+      output: {
+        filename: "vendor.js"
+      },
+      module: {
+        loaders: [
+          {test: /\.json$/, loader: 'json-loader'},
+          {test: /\.js$/, exclude: /node_modules/, loader: 'babel-loader?optional=runtime'}
+        ]
+      },
+      target: 'node-webkit',
+      debug: false
+    }))
+    .pipe(gulp.dest(BUILD_DIR + 'js/'))
+});
+
 gulp.task('webpack:dev', function() {
   // TODO jshint
   // TODO move to js/entry.js
@@ -59,8 +93,7 @@ gulp.task('webpack:dev', function() {
       },
       target: 'node-webkit',
       cache: true,
-      debug: true,
-      devtool: 'eval'
+      debug: true
     }))
     .pipe(gulp.dest(TMP_DIR + 'js/'))
     .pipe($.browserSync.reload({stream:true}));
@@ -79,7 +112,7 @@ gulp.task('webpack:dist', function() {
         filename: "app.js"
       },
       plugins: [
-        new BannerPlugin('Ripple Client v' + meta.version + '\nCopyright (c) ' + new Date().getFullYear() + ' ' + meta.author.name + '\nLicensed under the ' + meta.license + ' license.'),
+        new BannerPlugin('Ripple Admin Console v' + meta.version + '\nCopyright (c) ' + new Date().getFullYear() + ' ' + meta.author.name + '\nLicensed under the ' + meta.license + ' license.'),
         new UglifyJsPlugin({
           compress: {
             warnings: false
@@ -142,7 +175,7 @@ gulp.task('static', function() {
   var res = gulp.src(['res/**/*'])
     .pipe(gulp.dest(BUILD_DIR));
 
-  var fonts = gulp.src(['fonts/**/*', 'deps/font-awesome/fonts/**/*'])
+  var fonts = gulp.src(['fonts/**/*', 'node_modules/font-awesome/fonts/**/*'])
     .pipe(gulp.dest(BUILD_DIR + 'fonts/'));
 
   // Images
@@ -195,61 +228,80 @@ gulp.task('preprocess:dist', function() {
 // Languages
 gulp.task('templates:dev', function () {
   return gulp.src('src/templates/**/*.jade')
+    // filter out unchanged partials
+    .pipe($.cached('jade'))
+
+    // find files that depend on the files that have changed
+    .pipe($.jadeInheritance({basedir: 'src/templates'}))
+
+    // filter out partials (folders and files starting with "_" )
+    .pipe($.filter(function (file) {
+      return !/\/_/.test(file.path) && !/^_/.test(file.relative);
+    }))
+
     .pipe($.jade({
       jade: jade,
       pretty: true
     }))
-    .pipe(gulp.dest(TMP_DIR + 'templates/en'));
+    .pipe(gulp.dest(TMP_DIR + 'templates/en'))
 });
 
-var languageTasks = [];
+//var languageTasks = [];
 
-languages.forEach(function(language){
-  gulp.task('templates:' + language.code, function(){
+//languages.forEach(function(language){
+//  gulp.task('templates:' + language.code, function(){
+//    return gulp.src('src/templates/**/*.jade')
+//      .pipe($.jade({
+//        jade: jadeL10n,
+//        languageFile: 'l10n/' + language.code + '/messages.po',
+//        pretty: true
+//      }))
+//      .pipe(gulp.dest(BUILD_DIR + 'templates/' + language.code));
+//  });
 
-    return gulp.src('src/templates/**/*.jade')
-      .pipe($.jade({
-        jade: jadeL10n,
-        languageFile: 'l10n/' + language.code + '/messages.po',
-        pretty: true
-      }))
-      .pipe(gulp.dest(BUILD_DIR + 'templates/' + language.code));
-  });
+  //languageTasks.push('templates:' + language.code);
+//});
 
-  languageTasks.push('templates:' + language.code);
-});
+//gulp.task('templates:dist', function(){
+//  runSequence(languageTasks)
+//});
 
-gulp.task('templates:dist', function(){
-  runSequence(languageTasks)
+gulp.task('templates:dist', function() {
+  return gulp.src('src/templates/**/*.jade')
+    .pipe($.jade({
+      jade: jadeL10n,
+      languageFile: 'l10n/en/messages.po',
+      pretty: true
+    }))
+    .pipe(gulp.dest(BUILD_DIR + 'templates/en'));
 });
 
 // Default Task (Dev environment)
 gulp.task('default', function() {
   runSequence(
-    ['clean:dev', 'bower', 'webpack:dev', 'less', 'templates:dev',  'gitVersion'],
+    ['clean:dev', 'webpack:dev', 'webpack:vendor:dev', 'less', 'templates:dev',  'gitVersion'],
     'preprocess:dev',
     'serve',
     'nwlaunch'
   );
 
   // Webpack
-  gulp.watch(['src/js/**/*.js'], ['webpack:dev']);
+  gulp.watch(['src/js/**/*.js', 'config.js', '!src/js/entry/vendor.js'], ['webpack:dev']);
+
+  // Webpack for vendor files
+  gulp.watch(['src/js/entry/vendor.js'], ['webpack:vendor:dev']);
 
   // Templates
-  $.watch('src/templates/**/*.jade')
-    .pipe($.jadeFindAffected())
-    .pipe($.jade({jade: jade, pretty: true}))
-    .pipe(gulp.dest(TMP_DIR + 'templates/en'));
+  gulp.watch(['src/templates/**/*.jade'], ['templates:dev']);
 
   // index.html preprocessing
-  $.watch(TMP_DIR + 'templates/en/index.html', function(){
+  $.watch(TMP_DIR + 'templates/en/*.html', function(){
     gulp.start('preprocess:dev');
   });
 
   // Reload
   $.watch(TMP_DIR + 'templates/**/*', $.browserSync.reload);
 
-  // TODO Config
   gulp.watch('src/less/**/*', ['less']);
 });
 
@@ -292,11 +344,12 @@ gulp.task('build', function() {
     files: [BUILD_DIR + '**/**'],
     platforms: ['win', 'osx', 'linux'],
     // TODO: Use these instead of the nested app/package.json values
-    //appName: meta.name,
-    //appVersion: meta.version,
+    appName: meta.name + '-' + meta.version,
+    appVersion: meta.version,
     buildDir: PACKAGES_FOLDER,
     macZip: true,
     cacheDir: TMP_DIR,
+    version: '0.12.3',
     // TODO: timestamped versions
     macIcns: './res/dmg/xrp_ripple_logo.icns'
     // TODO: winIco
@@ -341,7 +394,7 @@ gulp.task('zip', function() {
 // Final product
 gulp.task('packages', function() {
   return runSequence(
-    ['clean:dist', 'bower', 'webpack:dist', 'less', 'templates:dist', 'static', 'gitVersion'],
+    ['clean:dist', 'webpack:dist', 'webpack:vendor:dist', 'less', 'templates:dist', 'static', 'gitVersion'],
     'preprocess:dist',
     'deps',
     'build',

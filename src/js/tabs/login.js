@@ -20,63 +20,50 @@ LoginTab.prototype.generateHtml = function ()
 LoginTab.prototype.angular = function (module) {
   module.controller('LoginCtrl', ['$scope', '$element', '$routeParams',
                                   '$location', 'rpId', '$rootScope',
-                                  'rpPopup', '$timeout', 'rpFileDialog',
+                                  'rpPopup', '$timeout', 'rpFileDialog', 'rpNW',
                                   function ($scope, $element, $routeParams,
                                             $location, $id, $rootScope,
-                                            popup, $timeout, filedialog)
+                                            popup, $timeout, filedialog, rpNW)
   {
     if ($id.loginStatus) {
       $location.path('/balance');
       return;
     }
 
+    if(!!store.get('walletfile')) {
+      $scope.walletfile = store.get('walletfile');
+      angular.element("#login_password").focus();
+    }
+
     $scope.fileInputClick = function(element){
       filedialog.openFile(function(evt) {
         $scope.$apply(function() {
+          store.set('walletfile', evt);
           $scope.walletfile = evt;
+          angular.element("#login_password").focus();
         });
       }, false);
     };
 
+    $scope.mode = 'open';
+
     // wallet file drang & drop
-    // prevent default behavior from changing page on dropped file
-    window.ondragover = function(e) {
-      e.preventDefault();
-      return false;
-    };
-
-    window.ondrop = function(e) {
-      e.preventDefault();
-      return false;
-    };
-
-    var holder = document.getElementById('walletfile');
-    holder.ondragover = function() {
-      this.className += this.className.indexOf(' dragover') == -1 ? ' dragover' : '';
-      return false;
-    };
-
-    holder.ondragleave = function() {
-      console.log("this.className", this.className);
-      this.className = this.className.replace(" dragover", "");
-      return false;
-    };
-
-    holder.ondrop = function(e) {
-      e.preventDefault();
-
-      $scope.$apply(function() {
-        $scope.walletfile = e.dataTransfer.files[0].path;
-      });
-
-      return false;
-    };
+    rpNW.dnd("walletfile", {
+      onDrop: function(e) {
+        $scope.$apply(function() {
+          store.set('walletfile', e.dataTransfer.files[0].path);
+          $scope.walletfile = e.dataTransfer.files[0].path;
+          angular.element("#login_password").focus();
+        });
+      }
+    });
 
     $scope.error = '';
     $scope.username = '';
     $scope.password = '';
     $scope.loginForm && $scope.loginForm.$setPristine(true);
     $scope.backendMessages = [];
+    $rootScope.address = '';
 
     // Autofill fix
     $timeout(function(){
@@ -122,8 +109,7 @@ LoginTab.prototype.angular = function (module) {
     // Probably this is an AngularJS issue. Had no time to check it yet.
     $scope.$watch('password');
 
-    $scope.submitForm = function()
-    {
+    $scope.submitForm = function() {
       if ($scope.ajax_loading) return;
 
       if (!$scope.walletfile) {
@@ -145,7 +131,7 @@ LoginTab.prototype.angular = function (module) {
           password: $scope.password,
           walletfile: $scope.walletfile
         }, function (err, blob) {
-          $scope.$apply(function(){
+          $scope.$apply(function() {
             $scope.ajax_loading = false;
             $scope.status = '';
 
@@ -153,8 +139,7 @@ LoginTab.prototype.angular = function (module) {
               $scope.error = 'Login failed: Wallet file or password is wrong.';
 
               return;
-            };
-
+            }
             $location.path('/balance');
           });
         });
@@ -163,6 +148,20 @@ LoginTab.prototype.angular = function (module) {
       $scope.ajax_loading = true;
       $scope.error = '';
       $scope.status = 'Fetching wallet...';
+    };
+
+    $scope.submitReadOnlyForm = function() {
+      $id.enterReadOnlyMode($scope.readOnly);
+
+      $location.path('/balance');
+    };
+
+    $scope.submitColdWalletForm = function() {
+      $location.path('/coldwallet/' + $scope.coldWallet);
+    };
+
+    $scope.submitTxnForm = function() {
+      $location.path('/submit');
     };
   }]);
 
