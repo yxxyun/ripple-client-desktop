@@ -30,7 +30,7 @@ deploy:
   provider: GitHub
   auth_token:
     secure: S4U2IauTnp7MUUSWtOnRjoq7jx6CSEx/sOMJGKPpt1fzQ9S+7wDQsmUNgWq3xsC4 # your encrypted token from GitHub
-  artifact: build\\packages\\            # upload all NuGet packages to release assets
+  artifact: build\packages.zip            # upload all packages to release assets
   draft: false
   prerelease: false
   on:
