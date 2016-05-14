@@ -1,13 +1,19 @@
-language: node_js
-node_js:
-  - "0.12"
+language: cpp
+env:
+  - NODE_VERSION="0.12"
 os:
   - linux
   - osx
+matrix:
+  fast_finish: true
 before_install:
+  - git clone https://github.com/creationix/nvm.git /tmp/.nvm;
+    source /tmp/.nvm/nvm.sh;
+    nvm install $NODE_VERSION;
+    nvm use --delete-prefix $NODE_VERSION;
+install:
   - npm install -g grunt
-before_script:
   - npm install -g bower
-  - bower install
-script: "grunt"
-
+  - npm install
+script:
+  - grunt
