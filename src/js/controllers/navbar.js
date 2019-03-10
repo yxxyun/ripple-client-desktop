@@ -33,10 +33,10 @@ module.controller('NavbarCtrl', ['$scope', '$element', '$compile', 'rpId',
         $scope.$apply(function() {
           $scope.fee = Number(fee);
           if ($scope.fee > Options.low_load_threshold &&
-              $scope.fee < Number(Options.connection.maxFeeXRP)) {
+              $scope.fee <= Number(Options.connection.maxFeeXRP)) {
             $scope.serverLoad = 'mediumLoad';
             $scope.serverStatus = 'mediumLoad';
-          } else if ($scope.fee >= Number(Options.connection.maxFeeXRP)) {
+          } else if ($scope.fee > Number(Options.connection.maxFeeXRP)) {
             $scope.serverLoad = 'highLoad';
             $scope.serverStatus = 'highLoad';
           } else {
