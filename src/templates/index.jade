@@ -82,8 +82,7 @@ html(ng-app='rp', ng-controller='AppCtrl', ng-class='[$route.current.tabClass, $
       $.ajaxSetup({
         cache: true
       });
-      var version = '<!-- @echo VERSION -->';
-      $.getScript('js/app.js?v=' + version);
+      $.getScript('js/app.js');
     <!-- @endif -->
 
     // loading state

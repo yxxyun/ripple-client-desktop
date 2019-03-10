@@ -275,7 +275,7 @@ gulp.task('default',
   gulp.series(
     gulp.parallel('clean:dev', 'less', 'templates:dev',  'gitVersion'),
     'webpack:dev',
-    'webpack:vendor:dev', 
+    'webpack:vendor:dev',
     'preprocess:dev',
     'serve',
     'nwlaunch'
@@ -308,8 +308,6 @@ gulp.task('deps', function () {
   return gulp.src([BUILD_DIR + 'index.html'])
     // Concatenates asset files from the build blocks inside the HTML
     .pipe(useref())
-    // Appends hash to extracted files app.css → app-098f6bcd.css
-    .pipe($.rev())
     // Adds AngularJS dependency injection annotations
     // We don't need this, cuz the app doesn't go thru this anymore
     //.pipe($.if('*.js', $.ngAnnotate()))
@@ -317,8 +315,6 @@ gulp.task('deps', function () {
     .pipe($.if('*.js', $.uglify()))
     // Minifies css files
     .pipe($.if('*.css', $.csso()))
-    // Rewrites occurences of filenames which have been renamed by rev
-    .pipe($.revReplace())
     // Minifies html
     .pipe($.if('*.html', $.minifyHtml({
       empty: true,
@@ -388,7 +384,7 @@ gulp.task('zip', function() {
 gulp.task('packages', gulp.series(
     gulp.parallel('clean:dist', 'less', 'templates:dist', 'static', 'gitVersion'),
     'webpack:dist',
-    'webpack:vendor:dist', 
+    'webpack:vendor:dist',
     'preprocess:dist',
     'deps',
     'build',
