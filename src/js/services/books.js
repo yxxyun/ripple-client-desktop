@@ -43,37 +43,40 @@ module.factory('rpBooks', ['rpNetwork', '$q', '$rootScope', '$filter', 'rpId',
         return false;
       }
 
-      if (d.TakerGets.value) {
-        d.TakerGets.value = d.taker_gets_funded;
+      d.TakerGetsFunded = d.TakerGets;
+      d.TakerPaysFunded = d.TakerPays;
+
+      if (d.TakerGetsFunded.value) {
+        d.TakerGetsFunded.value = d.taker_gets_funded;
       } else {
-        d.TakerGets = parseInt(Number(d.taker_gets_funded), 10);
+        d.TakerGetsFunded = parseInt(Number(d.taker_gets_funded), 10);
       }
 
-      if (d.TakerPays.value) {
-        d.TakerPays.value = d.taker_pays_funded;
+      if (d.TakerPaysFunded.value) {
+        d.TakerPaysFunded.value = d.taker_pays_funded;
       } else {
-        d.TakerPays = parseInt(Number(d.taker_pays_funded), 10);
+        d.TakerPaysFunded = parseInt(Number(d.taker_pays_funded), 10);
       }
 
-      d.TakerGets = deprecated.Amount.from_json(d.TakerGets);
-      d.TakerPays = deprecated.Amount.from_json(d.TakerPays);
+      d.TakerGetsFunded = deprecated.Amount.from_json(d.TakerGetsFunded);
+      d.TakerPaysFunded = deprecated.Amount.from_json(d.TakerPaysFunded);
 
       // You never know
-      if (!d.TakerGets.is_valid() || !d.TakerPays.is_valid()) {
+      if (!d.TakerGetsFunded.is_valid() || !d.TakerPaysFunded.is_valid()) {
         return false;
       }
 
       if (action === 'asks') {
-        d.price = deprecated.Amount.from_quality(d.BookDirectory, d.TakerPays.currency(),
-          d.TakerPays.issuer(), {
-            base_currency: d.TakerGets.currency(),
+        d.price = deprecated.Amount.from_quality(d.BookDirectory, d.TakerPaysFunded.currency(),
+          d.TakerPaysFunded.issuer(), {
+            base_currency: d.TakerGetsFunded.currency(),
             reference_date: new Date()
           });
       } else {
-        d.price = deprecated.Amount.from_quality(d.BookDirectory, d.TakerGets.currency(),
-          d.TakerGets.issuer(), {
+        d.price = deprecated.Amount.from_quality(d.BookDirectory, d.TakerGetsFunded.currency(),
+          d.TakerGetsFunded.issuer(), {
             inverse: true,
-            base_currency: d.TakerPays.currency(),
+            base_currency: d.TakerPaysFunded.currency(),
             reference_date: new Date()
           });
       }
@@ -90,8 +93,8 @@ module.factory('rpBooks', ['rpNetwork', '$q', '$rootScope', '$filter', 'rpId',
 
       if (lastprice === price && !d.my) {
         if (combine) {
-          newData[current].TakerPays = deprecated.Amount.from_json(newData[current].TakerPays).add(d.TakerPays);
-          newData[current].TakerGets = deprecated.Amount.from_json(newData[current].TakerGets).add(d.TakerGets);
+          newData[current].TakerPaysFunded = deprecated.Amount.from_json(newData[current].TakerPaysFunded).add(d.TakerPaysFunded);
+          newData[current].TakerGetsFunded = deprecated.Amount.from_json(newData[current].TakerGetsFunded).add(d.TakerGetsFunded);
         }
         d = false;
       } else {
@@ -113,7 +116,7 @@ module.factory('rpBooks', ['rpNetwork', '$q', '$rootScope', '$filter', 'rpId',
       return d;
     })));
 
-    var key = action === 'asks' ? 'TakerGets' : 'TakerPays';
+    var key = action === 'asks' ? 'TakerGetsFunded' : 'TakerPaysFunded';
     var sum;
     _.forEach(newData, function (order) {
       if (sum) {
