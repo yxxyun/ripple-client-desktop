@@ -182,6 +182,12 @@ SecurityTab.prototype.angular = function (module) {
       $scope.regularKey = Base58Utils.encode_base_check(33, sjcl.codec.bytes.fromBits(sjcl.random.randomWords(4)));
       $scope.regularKeyPublic = new RippleAddress($scope.regularKey).getAddress();
 
+      // This is basically impossible, just in case.
+      if ($scope.regularKeyPublic === $id.account) {
+        console.error("Generated regular key is the same as master key");
+        return;
+      }
+
       var onTransactionSucess = function(res) {
         console.log('Set regular key success', res);
       };
