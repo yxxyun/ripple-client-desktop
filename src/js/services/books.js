@@ -91,26 +91,17 @@ module.factory('rpBooks', ['rpNetwork', '$q', '$rootScope', '$filter', 'rpId',
         d.my = true;
       }
 
-      if (lastprice === price && !d.my) {
-        if (combine) {
-          newData[current].TakerPaysFunded = deprecated.Amount.from_json(newData[current].TakerPaysFunded).add(d.TakerPaysFunded);
-          newData[current].TakerGetsFunded = deprecated.Amount.from_json(newData[current].TakerGetsFunded).add(d.TakerGetsFunded);
-        }
+      if (lastprice === price && !d.my && !newData[current].my && combine) {
+        newData[current].TakerPaysFunded = deprecated.Amount.from_json(newData[current].TakerPaysFunded).add(d.TakerPaysFunded);
+        newData[current].TakerGetsFunded = deprecated.Amount.from_json(newData[current].TakerGetsFunded).add(d.TakerGetsFunded);
         d = false;
       } else {
         current = i;
-      }
-
-      if (!d.my) {
         lastprice = price;
-      }
-
-      if (d) {
         rowCount++;
-      }
-
-      if (rowCount > max_rows) {
-        return false;
+        if (rowCount > max_rows) {
+          return false;
+        }
       }
 
       return d;
