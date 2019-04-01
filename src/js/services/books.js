@@ -94,6 +94,7 @@ module.factory('rpBooks', ['rpNetwork', '$q', '$rootScope', '$filter', 'rpId',
       if (lastprice === price && !d.my && !newData[current].my && combine) {
         newData[current].TakerPaysFunded = deprecated.Amount.from_json(newData[current].TakerPaysFunded).add(d.TakerPaysFunded);
         newData[current].TakerGetsFunded = deprecated.Amount.from_json(newData[current].TakerGetsFunded).add(d.TakerGetsFunded);
+        newData[current].Account = newData[current].Account + "\n" + d.Account
         d = false;
       } else {
         current = i;
