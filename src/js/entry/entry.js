@@ -247,7 +247,9 @@ if ("function" === typeof angular.resumeBootstrap) {
 
 var gui = window.require('nw.gui');
 var win = gui.Window.get();
-win.showDevTools();
+if (process.env.DEBUG === 'true') {
+  win.showDevTools();
+}
 
 // Edit menu
 if (process.platform === "darwin") {

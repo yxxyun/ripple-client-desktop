@@ -270,10 +270,48 @@ gulp.task('templates:dist', function() {
     .pipe(gulp.dest(BUILD_DIR + 'templates/en'));
 });
 
-// Default Task (Dev environment)
+// Default Task (Dev environment, no showDevTools)
 gulp.task('default',
   gulp.series(
     gulp.parallel('clean:dev', 'less', 'templates:dev',  'gitVersion'),
+    'webpack:dev',
+    'webpack:vendor:dev',
+    'preprocess:dev',
+    'serve',
+    'nwlaunch'
+  ),
+ function(done) {
+  // Webpack
+  gulp.watch(['src/js/**/*.js', 'config.js', '!src/js/entry/vendor.js'], gulp.task('webpack:dev'));
+
+  // Webpack for vendor files
+  gulp.watch(['src/js/entry/vendor.js'], gulp.task('webpack:vendor:dev'));
+
+  // Templates
+  gulp.watch(['src/templates/**/*.jade'], gulp.task('templates:dev'));
+
+  // index.html preprocessing
+  $.watch(TMP_DIR + 'templates/en/*.html', function(){
+    gulp.start('preprocess:dev');
+  });
+
+  // Reload
+  $.watch(TMP_DIR + 'templates/**/*', $.browserSync.reload);
+
+  gulp.watch('src/less/**/*', gulp.task('less'));
+
+  done();
+});
+
+gulp.task('setdebug', function (done) {
+  process.env.DEBUG = 'true';
+  done();
+});
+
+// Dev Task (Dev environment, showDevTools)
+gulp.task('dev',
+  gulp.series(
+    gulp.parallel('clean:dev', 'less', 'templates:dev', 'gitVersion', 'setdebug'),
     'webpack:dev',
     'webpack:vendor:dev',
     'preprocess:dev',
