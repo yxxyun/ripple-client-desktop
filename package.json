@@ -116,7 +116,7 @@
     "merge-stream": "^1.0.1",
     "mime": "^2.4.1",
     "node-gyp-build": "^3.8.0",
-    "nw": "^0.37.2",
+    "nw": "^0.37.4",
     "run-sequence": "^2.2.1",
     "sjcl-codec": "^0.1.1",
     "uglifyjs-webpack-plugin": "^2.1.2",
