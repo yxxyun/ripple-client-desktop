@@ -370,14 +370,14 @@ gulp.task('deps', function () {
 gulp.task('build', function() {
   var nw = new NwBuilder({
     files: [BUILD_DIR + '**/**'],
-    platforms: ['win', 'osx', 'linux'],
+    platforms: ['linux'],
+    flavor: 'normal',
     // TODO: Use these instead of the nested app/package.json values
     appName: APP_NAME,
     appVersion: meta.version,
     buildDir: PACKAGES_FOLDER,
     zip: true,
     cacheDir: TMP_DIR,
-    version: '0.12.3',
     // TODO: timestamped versions
     macIcns: './res/dmg/xrp_ripple_logo.icns',
     winIco: './res/dmg/xrp_ripple_logo.ico'
