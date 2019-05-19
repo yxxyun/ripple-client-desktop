@@ -23,6 +23,7 @@ var $ = require('gulp-load-plugins')({
 var BUILD_DIR = '.build/';
 var TMP_DIR = '.tmp/';
 var PACKAGES_FOLDER = 'packages/';
+var APP_NAME = meta.name + '-' + meta.version
 
 require('events').EventEmitter.prototype._maxListeners = 100;
 
@@ -371,7 +372,7 @@ gulp.task('build', function() {
     files: [BUILD_DIR + '**/**'],
     platforms: ['win', 'osx', 'linux'],
     // TODO: Use these instead of the nested app/package.json values
-    appName: meta.name + '-' + meta.version,
+    appName: APP_NAME,
     appVersion: meta.version,
     buildDir: PACKAGES_FOLDER,
     zip: true,
@@ -391,29 +392,29 @@ gulp.task('build', function() {
 // Zip packages
 gulp.task('zip', function() {
   // Zip the packages
-  var linux32 = gulp.src(PACKAGES_FOLDER + meta.name + '/linux32/**/*')
+  var linux32 = gulp.src(PACKAGES_FOLDER + APP_NAME + '/linux32/**/*')
     .pipe($.zip('linux32.zip'))
-    .pipe(gulp.dest(PACKAGES_FOLDER + meta.name));
+    .pipe(gulp.dest(PACKAGES_FOLDER + APP_NAME));
 
-  var linux64 = gulp.src(PACKAGES_FOLDER + meta.name + '/linux64/**/*')
+  var linux64 = gulp.src(PACKAGES_FOLDER + APP_NAME + '/linux64/**/*')
     .pipe($.zip('linux64.zip'))
-    .pipe(gulp.dest(PACKAGES_FOLDER + meta.name));
+    .pipe(gulp.dest(PACKAGES_FOLDER + APP_NAME));
 
-  var osx32 = gulp.src(PACKAGES_FOLDER + meta.name + '/osx32/**/*')
+  var osx32 = gulp.src(PACKAGES_FOLDER + APP_NAME + '/osx32/**/*')
     .pipe($.zip('osx32.zip'))
-    .pipe(gulp.dest(PACKAGES_FOLDER + meta.name));
+    .pipe(gulp.dest(PACKAGES_FOLDER + APP_NAME));
 
-  var osx64 = gulp.src(PACKAGES_FOLDER + meta.name + '/osx64/**/*')
+  var osx64 = gulp.src(PACKAGES_FOLDER + APP_NAME + '/osx64/**/*')
     .pipe($.zip('osx64.zip'))
-    .pipe(gulp.dest(PACKAGES_FOLDER + meta.name));
+    .pipe(gulp.dest(PACKAGES_FOLDER + APP_NAME));
 
-  var win32 = gulp.src(PACKAGES_FOLDER + meta.name + '/win32/**/*')
+  var win32 = gulp.src(PACKAGES_FOLDER + APP_NAME + '/win32/**/*')
     .pipe($.zip('win32.zip'))
-    .pipe(gulp.dest(PACKAGES_FOLDER + meta.name));
+    .pipe(gulp.dest(PACKAGES_FOLDER + APP_NAME));
 
-  var win64 = gulp.src(PACKAGES_FOLDER + meta.name + '/win64/**/*')
+  var win64 = gulp.src(PACKAGES_FOLDER + APP_NAME + '/win64/**/*')
     .pipe($.zip('win64.zip'))
-    .pipe(gulp.dest(PACKAGES_FOLDER + meta.name));
+    .pipe(gulp.dest(PACKAGES_FOLDER + APP_NAME));
 
   return merge(linux32, linux64, osx32, osx64, win32, win64);
 });
