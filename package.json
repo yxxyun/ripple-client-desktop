@@ -119,7 +119,6 @@
     "nw": "^0.37.4",
     "run-sequence": "^2.2.1",
     "sjcl-codec": "^0.1.1",
-    "uglifyjs-webpack-plugin": "^2.1.2",
     "webpack-stream": "^5.2.1"
   },
   "optionalDependencies": {

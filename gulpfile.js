@@ -7,7 +7,6 @@ var gulp = require('gulp'),
   merge = require('merge-stream'),
   modRewrite = require('connect-modrewrite'),
   webpack = require('webpack'),
-  UglifyJsPlugin = require('uglifyjs-webpack-plugin'),
   jade = require('jade'),
   jadeL10n = require('jade-l10n'),
   NwBuilder = require('nw-builder'),
@@ -128,10 +127,6 @@ gulp.task('webpack:dist', function() {
       },
       target: 'node-webkit',
       cache: true,
-      // TODO: Figure out how to make this work.
-      // optimization: {
-      //   minimizer: [new UglifyJsPlugin()]
-      // },
       plugins: [
         new webpack.BannerPlugin('Ripple Admin Console v' + meta.version + '\nCopyright (c) ' + new Date().getFullYear() + ' ' + meta.author.name + '\nLicensed under the ' + meta.license + ' license.')
       ]
