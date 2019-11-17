@@ -25,12 +25,6 @@ module.factory('rpNetwork', ['$rootScope', function($scope)
     this.api = new RippleAPI(Options.connection);
     this.apiOrderbook = new RippleAPI(Options.connection);
     this.remote = this.api;
-  };
-
-  Network.prototype.connect = async function() {
-    this.api = new RippleAPI(Options.connection);
-    this.apiOrderbook = new RippleAPI(Options.connection);
-    this.remote = this.api;
     this.api.on('connected', () => {
       console.log('connected');
       var self = this;
@@ -53,14 +47,19 @@ module.factory('rpNetwork', ['$rootScope', function($scope)
         $scope.$apply()
       }
     });
+    this.api.on('error', (errorCode, errorMessage) => {
+      console.log(errorCode + ': ' + errorMessage);
+    });
+  };
 
+  Network.prototype.connect = async function() {
     await Promise.all([this.api.connect(), this.apiOrderbook.connect()]);
   };
 
   Network.prototype.disconnect = async function() {
     if (this.connected) {
       await Promise.all([this.api.disconnect(),
-          this.apiOrderbook.disconnect()]);
+                         this.apiOrderbook.disconnect()]);
     }
   };
 
@@ -125,6 +124,7 @@ module.factory('rpNetwork', ['$rootScope', function($scope)
         onError(verificationResult);
       }
     }).catch(error => {
+      console.log(error);
       /* If transaction not in latest validated ledger,
          try again until max ledger hit */
       if (error instanceof this.api.errors.PendingLedgerVersionError) {
