@@ -47,8 +47,8 @@ module.factory('rpNetwork', ['$rootScope', function($scope)
         $scope.$apply()
       }
     });
-    this.api.on('error', (errorCode, errorMessage) => {
-      console.log(errorCode + ': ' + errorMessage);
+    this.api.on('error', (errorCode, errorMessage, data) => {
+      console.log(errorCode, errorMessage, data);
     });
   };
 
