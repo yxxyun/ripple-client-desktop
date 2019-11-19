@@ -58,6 +58,11 @@ gulp.task('webpack:vendor:dev', function() {
           { test: /\.js$/, exclude: /node_modules/, loader: 'babel-loader' }
         ]
       },
+      resolve: {
+        alias: {
+          'bignumber.js$': 'bignumber.js/bignumber.js'
+        }
+      },
       target: 'node-webkit',
       cache: true,
     }))
