@@ -90,7 +90,7 @@ module.factory('rpNetwork', ['$rootScope', function($scope)
 
         console.log('Transaction submit result:', submitResult);
 
-        if (data.resultCode === 'tesSUCCESS') {
+        if (data.resultCode === 'tesSUCCESS' || data.resultCode === 'terQUEUED') {
           if (onSubmit) onSubmit(submitResult);
         } else {
           onError(submitResult);
