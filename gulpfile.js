@@ -176,7 +176,7 @@ gulp.task('serve', function(done) {
 });
 
 // Launch node-webkit
-gulp.task('nwlaunch', shell.task(['node_modules/.bin/nw']));
+gulp.task('nwlaunch', shell.task(['node_modules/.bin/nw --mixed-context']));
 
 // Static files
 gulp.task('static', function() {
