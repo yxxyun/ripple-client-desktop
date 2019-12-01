@@ -83,17 +83,12 @@ module.factory('rpNetwork', ['$rootScope', function($scope)
     return this.api.getLedger().then(ledger => {
       const signedData = this.api.sign(prepared.txJSON, secret);
       return this.api.submit(signedData.signedTransaction).then(data => {
-        const submitResult = {
-          engine_result: data.resultCode,
-          engine_result_message: data.resultMessage
-        };
-
-        console.log('Transaction submit result:', submitResult);
+        console.log('Transaction submit result:', data);
 
         if (data.resultCode === 'tesSUCCESS' || data.resultCode === 'terQUEUED') {
-          if (onSubmit) onSubmit(submitResult);
+          if (onSubmit) onSubmit(data);
         } else {
-          onError(submitResult);
+          onError(data);
         }
 
         const options = {
@@ -111,12 +106,12 @@ module.factory('rpNetwork', ['$rootScope', function($scope)
   /* Verify a transaction is in a validated XRP Ledger version */
   Network.prototype.verifyTx = function (hash, options, onSuccess, onError) {
     return this.api.getTransaction(hash, options).then(data => {
+      console.log('Transaction verification result:', data);
+
       const verificationResult = {
         engine_result: data.outcome.result,
         engine_result_message: ''
       };
-
-      console.log('Transaction verification result:', verificationResult);
 
       if (data.outcome.result === 'tesSUCCESS') {
         onSuccess(verificationResult);

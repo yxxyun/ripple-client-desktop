@@ -326,21 +326,19 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
       return;
     }
 
-    $scope.account = data;
-    $scope.account.Balance = Number(data.Balance) / 1000000;
-
     $network.api.getServerInfo().then(serverInfo => {
       $scope.$apply(() => {
-        var OwnerCount  = $scope.account.OwnerCount || 0;
-        $scope.account.reserve_base = reserve(serverInfo, 0);
-        $scope.account.reserve = reserve(serverInfo, OwnerCount);
-        $scope.account.reserve_to_add_trust = reserve(serverInfo, OwnerCount+1);
-        $scope.account.reserve_low_balance = $scope.account.reserve * 2;
+        var OwnerCount = data.OwnerCount || 0;
+        data.Balance = Number(data.Balance) / 1000000;
+        data.reserve_base = reserve(serverInfo, 0);
+        data.reserve = reserve(serverInfo, OwnerCount);
+        data.reserve_to_add_trust = reserve(serverInfo, OwnerCount+1);
+        data.reserve_low_balance = data.reserve * 2;
 
         // Maximum amount user can spend
-        $scope.account.max_spend = $scope.account.Balance -
-            $scope.account.reserve;
+        data.max_spend = data.Balance - data.reserve;
 
+        $scope.account = data;
         $scope.loadState['account'] = true;
       });
     }).catch(error => {
@@ -504,17 +502,16 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
 
     var balancesUpdated;
 
-    $.each(effects, function () {
+    effects.forEach(function (effect) {
       if (_.includes([
         'trust_create_local',
         'trust_create_remote',
         'trust_change_local',
         'trust_change_remote',
         'trust_change_balance',
-        'trust_change_flags'], this.type))
+        'trust_change_flags'], effect.type))
       {
-        var effect = this,
-            line = {},
+        var line = {},
             index = effect.counterparty + effect.currency;
 
         line.currency = effect.currency;
@@ -526,9 +523,7 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
 
         if (effect.balance) {
           line.balance = effect.balance;
-          updateRippleBalance(effect.currency,
-                                    effect.counterparty,
-                                    effect.balance);
+          updateRippleBalance(effect.currency, effect.counterparty, effect.balance);
           balancesUpdated = true;
         }
 
@@ -659,8 +654,6 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
     var address = $scope.address;
 
     if (address) {
-      console.log('$scope.address: ', address);
-
       $id.setAccount(address);
     }
   });
