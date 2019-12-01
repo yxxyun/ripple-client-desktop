@@ -175,6 +175,7 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
       response.meta.AffectedNodes.forEach(function(node) {
         if (!node.ModifiedNode) return;
         if (node.ModifiedNode.LedgerEntryType === 'AccountRoot' &&
+            node.ModifiedNode.FinalFields &&
             node.ModifiedNode.FinalFields.Account === data.account) {
           accountRoot = $.extend({}, node.ModifiedNode.FinalFields);
         }
