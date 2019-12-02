@@ -120,44 +120,6 @@ SecurityTab.prototype.angular = function (module) {
       $scope.editUnlock = false;
     };
 
-    $scope.changePassword = function() {
-      $scope.loading = true;
-      $scope.error = false;
-
-      // Get the master key
-      keychain.getSecret($id.account, $id.username, $scope.password,
-          function (err, masterkey) {
-            if (err) {
-              console.log("client: account tab: error while " +
-                  "unlocking wallet: ", err);
-
-              $scope.error = 'wrongpassword';
-              $scope.loading = false;
-              return;
-            }
-
-            // Change password
-            $id.changePassword({
-              username: $id.username,
-              password: $scope.password1,
-              masterkey: masterkey,
-              blob: $scope.userBlob
-            }, function(err){
-              if (err) {
-                console.log('client: account tab: error while ' +
-                    'changing the account password: ', err);
-                $scope.error = true;
-                $scope.loading = false;
-                return;
-              }
-
-              $scope.success = true;
-              reset();
-            });
-          }
-      );
-    };
-
     function requestToken (force, callback) {
       authflow.requestToken($scope.userBlob.url, $scope.userBlob.id, force, function(tokenError, tokenResp) {
         $scope.via = tokenResp.via;
@@ -286,8 +248,6 @@ SecurityTab.prototype.angular = function (module) {
       $scope.password1 = '';
       $scope.password2 = '';
       $scope.passwordSet = {};
-      $scope.loading = false;
-      $scope.error = false;
 
       if ($scope.changeForm) {
         $scope.changeForm.$setPristine(true);

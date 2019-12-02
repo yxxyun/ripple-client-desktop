@@ -306,35 +306,6 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
     $authflow.verifyToken(options, callback);
   };
 
-  Id.prototype.changePassword = function (options, callback) {
-    var self = this;
-
-    $authflow.changePassword(options, function(err, resp) {
-
-      if (err) {
-        return callback(err);
-      }
-
-      //NOTE: the section below changed so that you can recover with 2FA enabled
-      //We should be checking attestation statuses here also.
-
-      //perform login, so that the email verification is checked
-      //and the username, blob, and keys get stored.
-      //self.login(options, callback);
-
-      var keys = {id:options.blob.id,crypt:options.blob.key};
-
-      $scope.userBlob = options.blob;
-      self.setUsername(options.username);
-      self.setAccount(options.blob.data.account_id);
-      self.setLoginKeys(keys);
-      store.set('device_id', options.blob.device_id);
-      self.loginStatus = true;
-      $scope.$broadcast('$blobUpdate');
-      callback();
-    });
-  };
-
   Id.prototype.logout = function ()
   {
     sessionStorage.auth = '';

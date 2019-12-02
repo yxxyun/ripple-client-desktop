@@ -68,11 +68,9 @@ section.col-xs-12.content(ng-controller="SecurityCtrl")
                             span(l10n) Passwords do not match
                         div(ng-show="")
                     div.modal-buttons
-                      button.modal-btn.btn.btn-default.btn-success.btn-md(data-dismiss="modal", ng-click="encryptRegularKey()",
-                        rp-spinner='{{loading ? 4 : null}}', ng-disabled='encryptForm.$invalid || submitLoading')
-                        span(ng-show="loading", l10n) Loading...
-                        span(ng-hide="loading", l10n) Confirm
+                      button.modal-btn.btn.btn-default.btn-success.btn-md(data-dismiss="modal", ng-click="encryptRegularKey()", ng-disabled='encryptForm.$invalid')
+                        span(l10n) Confirm
                       button.modal-btn.btn.btn-cancel.btn-md.btn-cancel(data-dismiss="modal",
-                        ng-click='toggle_form()', ng-hide="loading", l10n) cancel
+                        ng-click='toggle_form()', l10n) cancel
               .col-md-1(ng-show="userBlob.data.masterkey")
                 a(href="", ng-click="removeRegularKey()", l10n) Remove
