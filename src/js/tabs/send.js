@@ -140,14 +140,12 @@ SendTab.prototype.angular = function (module)
       send.self = recipient === $scope.address;
 
       // Check destination tag visibility
-      if ($scope.onlineMode) {
-        $scope.check_dt_visibility();
+      $scope.check_dt_visibility();
 
-        if (destUpdateTimeout) $timeout.cancel(destUpdateTimeout);
-        destUpdateTimeout = $timeout($scope.update_destination_remote, 500);
-      } else {
-        $scope.check_destination();
+      if (destUpdateTimeout) {
+        $timeout.cancel(destUpdateTimeout);
       }
+      destUpdateTimeout = $timeout($scope.update_destination_remote, 500);
     };
 
     $scope.update_destination_remote = function () {
@@ -155,8 +153,9 @@ SendTab.prototype.angular = function (module)
       var recipient = send.recipient_address;
 
       // Reset federation address validity status
-      if ($scope.sendForm && $scope.sendForm.send_destination)
+      if ($scope.sendForm && $scope.sendForm.send_destination) {
         $scope.sendForm.send_destination.$setValidity("federation", true);
+      }
 
       $scope.check_destination();
     };
@@ -167,14 +166,6 @@ SendTab.prototype.angular = function (module)
       var recipient = send.recipient_actual || send.recipient_address;
 
       if (!RippleAddressCodec.isValidAddress(recipient)) return;
-
-      if (!$scope.onlineMode) {
-        $scope.send.currency = '';
-        $scope.send.path_status  = "none";
-        $scope.send.currency_choices = ['XRP'];
-        $scope.send.recipient_resolved = true;
-        return;
-      }
 
       var account = $network.remote.account(recipient);
 
@@ -442,7 +433,7 @@ SendTab.prototype.angular = function (module)
         var total = send.amount_feedback.add(send.recipient_info.Balance);
         var reserve_base = $scope.account.reserve_base;
 
-        if ($scope.onlineMode && total.is_comparable(reserve_base) && total.compareTo(reserve_base) < 0) {
+        if (total.is_comparable(reserve_base) && total.compareTo(reserve_base) < 0) {
           send.fund_status = "insufficient-xrp";
           send.xrp_deficiency = reserve_base.subtract(send.recipient_info.Balance);
           send.insufficient = true;
@@ -452,9 +443,7 @@ SendTab.prototype.angular = function (module)
         send.fund_status = 'none';
 
         send.path_status = 'pending';
-        if ($scope.onlineMode){
-          pathUpdateTimeout = $timeout($scope.update_paths, 500);
-        }
+        pathUpdateTimeout = $timeout($scope.update_paths, 500);
       }
     };
 
@@ -615,9 +604,7 @@ SendTab.prototype.angular = function (module)
       $scope.send.alt = null;
 
       // Force pathfinding reset
-      if ($scope.onlineMode) {
-        $scope.update_paths();
-      }
+      $scope.update_paths();
     };
 
     $scope.resetAddressForm = function() {
@@ -773,7 +760,7 @@ SendTab.prototype.angular = function (module)
         tx.sendMax($scope.send.alt.send_max);
         tx.paths($scope.send.alt.paths);
       } else {
-        if ($scope.onlineMode && !amount.is_native()) {
+        if (!amount.is_native()) {
           tx.buildPath(true);
         }
       }
@@ -792,34 +779,9 @@ SendTab.prototype.angular = function (module)
 
       var maxLedger = Options.tx_last_ledger || 3;
 
-      if ($scope.onlineMode) {
-        // TODO do we need this in offline mode?
-        tx.lastLedger($network.remote._ledger_current_index + maxLedger);
-        tx.submit();
-      }
-      else {
-        tx.tx_json.Sequence = Number($scope.sequence);
-        $scope.incrementSequence();
-        tx.complete();
-        $scope.signedTransaction = tx.sign().serialize().to_hex();
-        $scope.txJSON = JSON.stringify(tx.tx_json);
-        $scope.hash = tx.hash('HASH_TX_ID', false, undefined);
-        $scope.mode = "offlineSending";
-        var sequenceNumber = (Number(tx.tx_json.Sequence));
-        var sequenceLength = sequenceNumber.toString().length;
-        var txnName = $scope.userBlob.data.account_id + '-' + new Array(10 - sequenceLength + 1).join('0') + sequenceNumber + '.txt';
-        var txData = JSON.stringify({
-          tx_json: tx.tx_json,
-          hash: $scope.hash,
-          tx_blob: $scope.signedTransaction
-        });
-        if (!$scope.userBlob.data.defaultDirectory) {
-          $scope.fileInputClick(txnName, txData);
-        }
-        else {
-          $scope.saveToDisk(txnName, txData);
-        }
-      }
+      // TODO do we need this in offline mode?
+      tx.lastLedger($network.remote._ledger_current_index + maxLedger);
+      tx.submit();
 
       $scope.confirmedTime = new Date();
     };

@@ -7,7 +7,7 @@ section.col-xs-12.content(ng-controller='SendCtrl')
   //- 1. Send form
 
   form.row-padding-small.mode-form#sendForm(name="sendForm", role="form"
-    ng-show='mode=="form" && ((account.Balance && connected) || !onlineMode)'
+    ng-show='mode=="form" && account.Balance && connected'
     ng-submit='send_prepared()')
     .row.form-group
       .col-xs-12.col-sm-6.col-md-5
@@ -105,7 +105,7 @@ section.col-xs-12.content(ng-controller='SendCtrl')
           rp-amount-positive
           rp-amount-xrp-limit
           rp-amount-xrp-limit-currency='{{send.currency}}')
-        .col-xs-9.col-sm-6.col-md-4(ng-show="onlineMode")
+        .col-xs-9.col-sm-6.col-md-4
           .description Currency
           input.form-control.currency#send_amount_currency(
           name='send_amount_currency', type='text'
@@ -115,11 +115,6 @@ section.col-xs-12.content(ng-controller='SendCtrl')
           rp-autofill-currency
           rp-autofill-currency-fullname
           rp-restrict-currencies='{{send.restrict_currencies}}')
-        .col-xs-9.col-sm-6.col-md-4(ng-show="!onlineMode")  
-          .description Currency
-          input.form-control.currency#send_amount_currency(
-            name='send_amount_currency', type='text'
-            ng-model='send.currency')
       .row(ng-if="send.currency_force")
         .col-xs-12.col-sm-6.col-md-3.input-group.currency_force
           input.form-control#send_amount(
@@ -151,15 +146,10 @@ section.col-xs-12.content(ng-controller='SendCtrl')
         .notice(ng-show="send.trust_limit", l10n) {{send.recipient | rpcontactname}}
           | trusts you for {{send.trust_limit | rpamount}} {{send.trust_limit | rpcurrency}}.
     .row
-      .col-xs-12.col-sm-6.col-md-4(ng-show="onlineMode && send.currency_code == 'XRP'")
+      .col-xs-12.col-sm-6.col-md-4(ng-show="send.currency_code == 'XRP'")
         button#sendXrpButton.btn.btn-block.btn-success.submit(type='submit'
         ng-disabled='sendForm.$invalid || send.self || !send.recipient_resolved || Number(account.max_spend) < send.amount', l10n)
           | Send XRP
-    .row
-      .col-xs-12.col-sm-6.col-md-4(ng-show="!onlineMode")
-        button#sendXrpButton.btn.btn-block.btn-success.submit(type='submit'
-        ng-disabled='sendForm.$invalid || send.self || !send.recipient_resolved', l10n)
-          | Send   
     .remote
       //- Messages
       p.literal(ng-show="send.fund_status == 'insufficient-xrp'", l10n)
@@ -173,9 +163,9 @@ section.col-xs-12.content(ng-controller='SendCtrl')
         | Analyzing address
       p.literal(ng-show="send.path_status == 'account-currencies'", rp-spinner="4", l10n)
         | Scanning accepted currencies
-      p.literal(ng-show="send.path_status == 'pending' && send.currency_code != 'XRP' && onlineMode", rp-spinner="4", l10n)
+      p.literal(ng-show="send.path_status == 'pending' && send.currency_code != 'XRP'", rp-spinner="4", l10n)
         | Calculating paths
-      p.literal(ng-show="send.path_status == 'pending' && send.currency_code == 'XRP' && onlineMode", rp-spinner="4", l10n)
+      p.literal(ng-show="send.path_status == 'pending' && send.currency_code == 'XRP'", rp-spinner="4", l10n)
         | Calculating alternatives
       p.literal(ng-show="send.path_status == 'no-path' && send.currency_code != 'XRP'", l10n)
         | You cannot send {{send.amount}} {{send.currency}} to
@@ -235,10 +225,9 @@ section.col-xs-12.content(ng-controller='SendCtrl')
 
   //- N3. Confirmation page
 
-  group.mode-confirm(ng-show='mode=="confirm" && ((account.Balance && connected) || !onlineMode)')
+  group.mode-confirm(ng-show='mode=="confirm" && account.Balance && connected')
     p.literal(l10n) You are sending
-      span(ng-show="onlineMode")  {{ (send.alt.amount || send.currency) | rpcurrency}}
-      span(ng-show="!onlineMode")  {{ send.currency }}
+      span {{ (send.alt.amount || send.currency) | rpcurrency}}
       |  to
     .dest_feedback
       .recipient(ng-show='send.recipient_name') {{send.recipient_name}}
@@ -346,36 +335,3 @@ section.col-xs-12.content(ng-controller='SendCtrl')
         a(href="", ng-click="reset_goto('balance')", l10n) Back to balance
       hr
 
-  //- Offline Sending
-  group.mode-status(ng-show='mode=="offlineSending"')
-    signed-transaction(data="{{signedTransaction}}", txJSON="{{txJSON}}", hash="{{hash}}")
-    group.actions
-      hr
-      .text-success(ng-show='addressSaved', class="actionLink", l10n) Contact saved!
-      .save-address-form(ng-hide='contact', class="actionLink")
-        a(href="", ng-click='show_save_address_form = true', l10n)
-          | Add this address to contacts
-        form(name="saveAddressForm", ng-class="{ show: show_save_address_form }"
-        ng-submit='saveAddress()')
-          .address {{send.recipient_address}}
-          label(for='save_address_name', l10n) Name this user
-          input.form-control#contact_name(
-          name='save_address_name', type="text"
-          ng-model='saveAddressName', unique, required
-          rp-autofill='$routeParams.name')
-          .error(ng-show='saveAddressForm.save_address_name.$error.unique', l10n)
-            | You already have a contact with the same name.
-          div.row.add-contact-btns-wrapper
-            div.col-md-3.col-sm-4.col-xs-8
-              button.btn.btn-success.btn-block(type='submit'
-                ng-disabled='addressSaving || saveAddressForm.$invalid')
-                span(ng-show='addressSaving', l10n) Saving...
-                span(ng-hide='addressSaving', l10n) Save
-            div.col-md-1.col-sm-2.col-xs-4
-              a.btn.btn-block(href="", ng-click='show_save_address_form = false', l10n) cancel
-          hr
-      div(class="actionLink")
-        a(href="", ng-click="reset()", l10n) Send another payment
-      div(class="actionLink")
-        a(href="", ng-click="reset_goto('balance')", l10n) Back to balance
-      hr
