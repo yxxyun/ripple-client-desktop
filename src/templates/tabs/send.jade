@@ -154,7 +154,7 @@ section.col-xs-12.content(ng-controller='SendCtrl')
       //- Messages
       p.literal(ng-show="send.fund_status == 'insufficient-xrp'", l10n)
         | Destination account is unfunded; send at least
-        |  {{send.xrp_deficiency | rpamount}} XRP to fund it.
+        |  {{send.xrp_deficiency}} XRP to fund it.
         a(href="https://ripple.com/wiki/Reserves", target="_blank", l10n)
           | More information
       p.literal(ng-show="send.path_status == 'checking'", rp-spinner="4", l10n)
