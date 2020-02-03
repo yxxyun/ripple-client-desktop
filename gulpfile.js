@@ -377,7 +377,7 @@ gulp.task('deps', function () {
 gulp.task('build', function() {
   var nw = new NwBuilder({
     files: [BUILD_DIR + '**/**'],
-    platforms: ['linux'],
+    platforms: ['linux64', 'win64', 'osx64'],
     flavor: 'normal',
     // TODO: Use these instead of the nested app/package.json values
     appName: APP_NAME,
