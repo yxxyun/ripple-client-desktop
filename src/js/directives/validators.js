@@ -64,7 +64,7 @@ module.directive('rpDest', ['$timeout', '$parse', function ($timeout, $parse) {
 
         ctrl.rpDestType = null;
 
-        if (attr.rpDestAddress && RippleAddressCodec.isValidAddress(strippedValue)) {
+        if (attr.rpDestAddress && RippleAddressCodec.isValidClassicAddress(strippedValue)) {
           ctrl.rpDestType = "address";
           ctrl.$setValidity('rpDest', true);
 

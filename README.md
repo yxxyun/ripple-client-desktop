@@ -4,7 +4,7 @@
 
 - Clone the ripple-client-desktop repository
 - Run `npm install`
-- Run `npm install nw --nwjs_build_type=sdk` (optional, needed only for
+- Run `npm install nw --nwjs_build_type=sdk --save-dev` (optional, needed only for
   development)
 
 ## Build

@@ -166,7 +166,7 @@ SendTab.prototype.angular = function (module)
       var send = $scope.send;
       var recipient = send.recipient_actual || send.recipient_address;
 
-      if (!RippleAddressCodec.isValidAddress(recipient)) return;
+      if (!RippleAddressCodec.isValidClassicAddress(recipient)) return;
 
       send.path_status = 'checking';
       send.recipient_info = null;
@@ -338,7 +338,7 @@ SendTab.prototype.angular = function (module)
       $scope.reset_currency_deps();
 
       // We should have a valid recipient
-      if (!RippleAddressCodec.isValidAddress(recipient) && !send.quote_url) {
+      if (!RippleAddressCodec.isValidClassicAddress(recipient) && !send.quote_url) {
         return;
       }
 
@@ -400,7 +400,7 @@ SendTab.prototype.angular = function (module)
         send.amount_feedback.set_issuer(1);
         pathUpdateTimeout = $timeout($scope.update_quote, 500);
       } else {
-        if (!RippleAddressCodec.isValidAddress(recipient) || !deprecated.Amount.is_valid(amount)) {
+        if (!RippleAddressCodec.isValidClassicAddress(recipient) || !deprecated.Amount.is_valid(amount)) {
           // XXX Error?
           return;
         }

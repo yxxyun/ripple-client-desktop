@@ -60,7 +60,8 @@ gulp.task('webpack:vendor:dev', function() {
       },
       resolve: {
         alias: {
-          'bignumber.js$': 'bignumber.js/bignumber.js'
+          'bignumber.js$': 'bignumber.js/bignumber.js',
+          'decimal.js$': 'decimal.js/decimal.js'
         }
       },
       target: 'node-webkit',
@@ -84,6 +85,12 @@ gulp.task('webpack:vendor:dist', function() {
         rules: [
           { test: /\.js$/, exclude: /node_modules/, loader: 'babel-loader' }
         ]
+      },
+      resolve: {
+        alias: {
+          'bignumber.js$': 'bignumber.js/bignumber.js',
+          'decimal.js$': 'decimal.js/decimal.js'
+        }
       },
       target: 'node-webkit',
       cache: true,

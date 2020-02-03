@@ -143,7 +143,7 @@ exports.resolveContact = function (contacts, value)
     }
   }
 
-  if (RippleAddressCodec.isValidAddress(value)) {
+  if (RippleAddressCodec.isValidClassicAddress(value)) {
     return value;
   }
 

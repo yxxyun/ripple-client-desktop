@@ -692,8 +692,8 @@ TradeTab.prototype.angular = function(module)
       }
 
       // Invalid issuers or XRP/XRP pair
-      if ((!first_currency.is_native() && !RippleAddressCodec.isValidAddress(order.first_issuer)) ||
-          (!second_currency.is_native() && !RippleAddressCodec.isValidAddress(order.second_issuer)) ||
+      if ((!first_currency.is_native() && !RippleAddressCodec.isValidClassicAddress(order.first_issuer)) ||
+          (!second_currency.is_native() && !RippleAddressCodec.isValidClassicAddress(order.second_issuer)) ||
           (first_currency.is_native() && second_currency.is_native())) {
         order.valid_settings = false;
         return;
@@ -1133,7 +1133,7 @@ TradeTab.prototype.angular = function(module)
         routeCurrencies[prefix] = $routeParams[prefix].match(/^(\w{3})/);
 
         if (routeIssuers[prefix]) {
-          if (RippleAddressCodec.isValidAddress(routeIssuers[prefix][1])) {
+          if (RippleAddressCodec.isValidClassicAddress(routeIssuers[prefix][1])) {
             $scope.order[prefix + '_issuer'] = routeIssuers[prefix][1];
           } else {
             $location.path('/trade');
