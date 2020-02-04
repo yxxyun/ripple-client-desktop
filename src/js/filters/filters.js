@@ -333,6 +333,7 @@ module.filter('rprange', function() {
 
 module.filter('rpaddressorigin', function() {
   return function(recipient) {
+    // TODO(r0bertz): figure out what this does
     return !isNaN(deprecated.Base.decode_check([0, 5], recipient, 'bitcoin')) ? 'bitcoin' : 'ripple';
   };
 });

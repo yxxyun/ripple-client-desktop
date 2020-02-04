@@ -4,9 +4,9 @@
  * Form validation directives go into this file.
  */
 
-var webutil = require('../util/web');
-
+var codec = require('ripple-address-codec');
 var module = angular.module('validators', []);
+var webutil = require('../util/web');
 
 /**
  * Secret Account Key validator
@@ -19,7 +19,15 @@ module.directive('rpMasterKey', function () {
       if (!ctrl) return;
 
       var validator = function(value) {
-        if (value && !deprecated.Base.decode_check(33, value)) {
+        var decode_check = function(value) {
+          try {
+            return codec.decodeSeed(value);
+          } catch (e) {
+            return NaN;
+          }
+        }
+
+        if (value && !decode_check(value)) {
           ctrl.$setValidity('rpMasterKey', false);
           return;
         }
