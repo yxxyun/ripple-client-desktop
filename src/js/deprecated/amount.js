@@ -8,7 +8,7 @@ const extend = require('extend');
 const utils = require('./utils');
 const Currency = require('./currency').Currency;
 const {XRPValue, IOUValue} = require('ripple-lib-value');
-const {isValidAddress} = require('ripple-address-codec');
+const {isValidClassicAddress} = require('ripple-address-codec');
 const {ACCOUNT_ONE, ACCOUNT_ZERO} = require('./constants');
 
 function Amount(value = new XRPValue(NaN)) {
@@ -422,7 +422,7 @@ Amount.prototype.is_valid = function() {
 
 Amount.prototype.is_valid_full = function() {
   return this.is_valid() && this._currency.is_valid()
-    && isValidAddress(this._issuer) && this._issuer !== ACCOUNT_ZERO;
+    && isValidClassicAddress(this._issuer) && this._issuer !== ACCOUNT_ZERO;
 };
 
 Amount.prototype.is_zero = function() {
@@ -943,7 +943,7 @@ Amount.prototype.to_json = function() {
     this._currency.to_hex() : this._currency.to_json()
   };
 
-  if (isValidAddress(this._issuer)) {
+  if (isValidClassicAddress(this._issuer)) {
     amount_json.issuer = this._issuer;
   }
 
