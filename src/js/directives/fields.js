@@ -183,7 +183,16 @@ module.directive('rpCombobox', [function () {
           }
 
           if (re) val = val.replace(re, '<u>$1</u>');
-          var completionHtml = $('<li><span class="val">' + val + '</span>' + additional + '</li>');
+
+          var completionHtml;
+
+          if(completion.label){
+            completionHtml = $('<li><span class="val">' + completion.label + '</span>' + additional + '</li>');
+            $(completionHtml).find('.val').attr('name', val);
+          }else{
+           completionHtml = $('<li><span class="val">' + val + '</span>' + additional + '</li>');
+          }
+
           el.parent().find('.completions').append(completionHtml);
         });
       }
@@ -208,12 +217,17 @@ module.directive('rpCombobox', [function () {
       }
 
       function selectCompletion(liEl) {
+
+        var name = $(liEl).find('.val').attr('name');
         var val = $(liEl).find('.val').text();
+
         scope.$apply(function () {
+          ngModel.$setViewValue(name || val);
+          ngModel.$modelValue = val;
           el.val(val);
-          ngModel.$setViewValue(val);
           setVisible(false);
         });
+
       }
 
       function escape(str) {

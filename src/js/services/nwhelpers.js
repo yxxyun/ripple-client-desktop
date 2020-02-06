@@ -7,7 +7,7 @@ var module = angular.module('nwhelpers', []);
 module.factory('rpNW', ['rpId',
   function($id) {
     var nwService = {},
-      gui = require('nw.gui'),
+      gui = window.require('nw.gui'),
       ctxMenu = new gui.Menu(),
       trayMenu = new gui.Menu(),
       menuItems = {},

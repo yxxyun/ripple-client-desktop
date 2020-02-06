@@ -1,8 +1,8 @@
-var util = require('util');
-var webutil = require('../util/web');
-var Tab = require('../client/tab').Tab;
-var Currency = ripple.Currency;
-var fs = require('fs');
+var util = require('util'),
+    webutil = require('../util/web'),
+    Tab = require('../client/tab').Tab,
+    Tx = require('../util/tx'),
+    fs = require('fs');
 
 var TrustTab = function ()
 {
@@ -20,23 +20,20 @@ TrustTab.prototype.generateHtml = function () {
 };
 
 TrustTab.prototype.angular = function (module) {
-  module.controller('TrustCtrl', ['$scope', 'rpBooks', '$timeout',
+  module.controller('TrustCtrl', ['$scope', '$timeout',
     '$routeParams', 'rpId', '$filter', 'rpNetwork', 'rpKeychain',
-    function ($scope, books, $timeout, $routeParams, id, $filter,
-      $network, keychain) {
-
+    function ($scope, $timeout, $routeParams, id, $filter, $network, keychain) {
       if (!id.loginStatus) {
         id.goId();
       }
 
       // Used in offline mode
       if (!$scope.fee) {
-        $scope.fee = Number(Options.max_tx_network_fee);
+        $scope.fee = Number(Options.connection.maxFeeXRP);
       }
 
       var RemoteFlagDefaultRipple = 0x00800000;
       var AuthEnabled = 0x00040000;
-      $scope.trust = {};
 
       // Trust line sorting
       $scope.sorting = {
@@ -47,23 +44,6 @@ TrustTab.prototype.angular = function (module) {
             line.currency : line.balance.to_number();
         }
       };
-
-    $scope.saveTransaction = function(tx) {
-      var sequenceNumber = (Number(tx.tx_json.Sequence));
-      var sequenceLength = sequenceNumber.toString().length;
-      var txnName = $scope.userBlob.data.account_id + '-' + new Array(10 - sequenceLength + 1).join('0') + sequenceNumber + '.txt';
-      var txData = JSON.stringify({
-        tx_json: tx.tx_json,
-        hash: $scope.hash,
-        tx_blob: $scope.signedTransaction
-      });
-      if (!$scope.userBlob.data.defaultDirectory) {
-        $scope.fileInputClick(txnName, txData);
-      }
-      else {
-        $scope.saveToDisk(txnName, txData);
-      }
-    };
 
       $scope.reset = function () {
         $scope.mode = 'main';
@@ -78,7 +58,6 @@ TrustTab.prototype.angular = function (module) {
       };
 
       $scope.toggle_form = function () {
-
         if ($scope.addform_visible) {
           $scope.reset();
         } else {
@@ -86,42 +65,31 @@ TrustTab.prototype.angular = function (module) {
         }
       };
 
-
       // User should not be able to grant trust if the reserve is insufficient
       $scope.$watch('account', function() {
         $scope.acctDefaultRippleFlag = ($scope.account.Flags & RemoteFlagDefaultRipple);
         // Allow user to set auth on a trustline only if their account has auth enabled
         $scope.disallowAuth = !($scope.account.Flags & AuthEnabled);
         // Client is online and RequireAuth is not set on account root
-        if ($scope.onlineMode && $scope.disallowAuth) {
+        if ($scope.disallowAuth) {
           $scope.setAuthMessage = 'This account has not enabled authorization, '
           + 'so there is no need to set authorization on a trustline.';
-        } else if ($scope.onlineMode) {
+        } else {
           // Client is online and ReqireAuth is set on account root
           $scope.setAuthMessage = 'Authorize the other party to hold '
           + 'issuances from this account.';
-        } else {
-          // Client is not online, don't know if RequireAuth is set
-          // so allow user to set flag
-          $scope.setAuthMessage = 'Authorize the other party to hold '
-          + 'issuances from this account. You must have the RequireAuth flag enabled in Gateways and trust lines.';
         }
 
-        $scope.can_add_trust = false;
-        if (!$scope.onlineMode) {
-          $scope.can_add_trust = true;
-        } else if ($scope.account.Balance && $scope.account.reserve_to_add_trust) {
-          if (!$scope.account.reserve_to_add_trust.subtract($scope.account.Balance).is_positive()
-            || $.isEmptyObject($scope.lines)) {
-            $scope.can_add_trust = true;
-          }
+        $scope.can_add_trust = true;
+        if (!$scope.account.Balance || !$scope.account.reserve_to_add_trust ||
+            $scope.account.Balance < $scope.account.reserve_to_add_trust) {
+          $scope.can_add_trust = false;
         }
       }, true);
 
       $scope.$watch('counterparty', function() {
         $scope.error_account_reserve = false;
-        $scope.contact = webutil.getContact($scope.userBlob.data.contacts,
-          $scope.counterparty);
+        $scope.contact = webutil.getContact($scope.userBlob.data.contacts, $scope.counterparty);
         if ($scope.contact) {
           $scope.counterparty_name = $scope.contact.name;
           $scope.counterparty_address = $scope.contact.address;
@@ -143,7 +111,7 @@ TrustTab.prototype.angular = function (module) {
           // hide throbber
           $scope.verifying = false;
 
-          $scope.lineCurrencyObj = Currency.from_human($scope.currency);
+          $scope.lineCurrencyObj = deprecated.Currency.from_human($scope.currency);
           var matchedCurrency = $scope.lineCurrencyObj.has_interest() ? $scope.lineCurrencyObj.to_hex() : $scope.lineCurrencyObj.get_iso();
           var match = /^([a-zA-Z0-9]{3}|[A-Fa-f0-9]{40})\b/.exec(matchedCurrency);
 
@@ -155,11 +123,13 @@ TrustTab.prototype.angular = function (module) {
           }
 
           if ($scope.amount === '') {
-            // $scope.amount = Number(ripple.Amount.consts.max_value);
+            // $scope.amount = Number(deprecated.Amount.consts.max_value);
             $scope.amount = Options.gateway_max_limit;
           }
 
-          var amount = ripple.Amount.from_human('' + $scope.amount + ' ' + $scope.lineCurrencyObj.to_hex(), {reference_date: new Date(+new Date() + 5 * 60000)});
+          var amount = deprecated.Amount.from_human(
+            '' + $scope.amount + ' ' + $scope.lineCurrencyObj.to_hex(),
+            {reference_date: new Date(+new Date() + 5 * 60000)});
 
           amount.set_issuer($scope.counterparty_address);
           if (!amount.is_valid()) {
@@ -173,8 +143,6 @@ TrustTab.prototype.angular = function (module) {
           $timeout(function() {
             $scope.confirm_wait = false;
           }, 1000, true);
-
-          $scope.mode = 'confirm';
         });
       };
 
@@ -182,100 +150,70 @@ TrustTab.prototype.angular = function (module) {
        * N3. Waiting for grant result page
        */
       $scope.grant_confirmed = function() {
-        var amount = $scope.amount_feedback.to_json();
-        var tx = $network.remote.transaction();
-        // Add memo to tx
-        tx.addMemo('client', 'rt' + $scope.version);
+        var onTransactionSubmit = function(res) {
+          $scope.$apply(function() {
+            setEngineStatus(res, false);
+            $scope.granted(res.tx_json.hash);
 
-        // Set or clear the trust flags
-        // The user may wish to leave the settings unchanged,
-        // in which case the flag is not set on the transaction
-        var flags = [];
-
-        // NoRipple flag
-        if ($scope.ripplingFlag === 'tfClearNoRipple') {
-          flags.push('ClearNoRipple');
-        } else if ($scope.ripplingFlag === 'tfSetNoRipple') {
-          flags.push('SetNoRipple');
-        }
-
-        // Auth flag
-        if ($scope.authFlag === 'tfSetfAuth') {
-          flags.push('SetAuth');
-        }
-
-        // Freeze flag
-        if ($scope.freezeFlag === 'tfSetFreeze') {
-          flags.push('SetFreeze');
-        } else if ($scope.freezeFlag === 'tfClearFreeze') {
-          flags.push('ClearFreeze');
-        }
-
-        tx
-          .rippleLineSet(id.account, amount)
-          .setFlags(flags)
-          .on('submitted', function(res) {
-            $scope.$apply(function() {
-              setEngineStatus(res, false);
-              $scope.granted(tx.hash);
-
-              // Remember currency and increase order
-              for (var i = 0; i < $scope.currencies_all.length; i++) {
-                if ($scope.currencies_all[i].value.toLowerCase() === $scope.amount_feedback.currency().get_iso().toLowerCase()) {
-                  $scope.currencies_all[i].order++;
-                  break;
-                }
+            // Remember currency and increase order
+            for (var i = 0; i < $scope.currencies_all.length; i++) {
+              if ($scope.currencies_all[i].value.toLowerCase() ===
+                  $scope.amount_feedback.currency().get_iso().toLowerCase()) {
+                $scope.currencies_all[i].order++;
+                break;
               }
-            });
-          })
-          .on('success', function(res) {
+            }
+          });
+        };
+
+        var onTransactionError = function(res) {
+          setImmediate(function () {
             $scope.$apply(function() {
               setEngineStatus(res, true);
             });
-          })
-          .on('error', function(res) {
-            setImmediate(function () {
-              $scope.$apply(function() {
-                $scope.mode = 'error';
-                $scope.trust.loading = false;
-                var notification = res.result === 'tejMaxFeeExceeded' ? 'max_fee' : 'error';
-                $scope.load_notification(notification);
-              });
-            });
           });
+        };
 
         keychain.requestSecret(id.account, id.username, function(err, secret) {
-          // XXX Error handling
           if (err) {
+            console.log('Error on requestSecret: ', err);
             return;
           }
 
-          $scope.mode = 'granting';
+          var trustline = {
+            currency: $scope.amount_feedback.currency().get_iso(),
+            counterparty: $scope.amount_feedback.issuer(),
+            limit: $scope.amount_feedback.to_text(),
+            memos:  [{
+              type: $network.api.convertStringToHex('client'),
+              format: $network.api.convertStringToHex('rt' + $scope.version)
+            }]
+          };
 
-          tx.secret(secret);
-
-          // If online, submit tx to network, else display tx blob so it can be submitted later
-          if ($scope.onlineMode) {
-            tx.submit();
-          } else {
-            tx.tx_json.Sequence = Number($scope.sequence);
-            $scope.incrementSequence();
-            // Fee must be converted to drops
-            tx.tx_json.Fee = ripple.Amount.from_json(Options.max_tx_network_fee).to_human() * 1000000;
-            tx.complete();
-            try {
-              $scope.signedTransaction = tx.sign().serialize().to_hex();
-              $scope.txJSON = JSON.stringify(tx.tx_json);
-              $scope.hash = tx.hash('HASH_TX_ID', false, undefined);
-              $scope.saveTransaction(tx);
-            } catch (e) {
-              console.log('Caught error');
-              $scope.trust.loading = false;
-              $scope.load_notification('error');
-              return;
-            }
-            $scope.mode = 'offlineSending';
+          // NoRipple flag
+          if ($scope.ripplingFlag === 'tfClearNoRipple') {
+            trustline.ripplingDisabled = false;
+          } else if ($scope.ripplingFlag === 'tfSetNoRipple') {
+            trustline.ripplingDisabled = true;
           }
+
+          // Auth flag
+          if ($scope.authFlag === 'tfSetfAuth') {
+            trustline.authorized = true;
+          }
+
+          // Freeze flag
+          if ($scope.freezeFlag === 'tfSetFreeze') {
+            trustline.frozen = true;
+          } else if ($scope.freezeFlag === 'tfClearFreeze') {
+            trustline.frozen = false;
+          }
+
+          $network.api.prepareTrustline(
+              id.account, trustline, Tx.Instructions).then(prepared => {
+            return $network.submitTx(prepared, secret, console.log,
+              onTransactionError, onTransactionSubmit);
+          }).catch(console.error);
         });
       };
 
@@ -284,13 +222,16 @@ TrustTab.prototype.angular = function (module) {
        */
       $scope.granted = function(hash) {
         $scope.mode = 'granted';
-        $network.remote.on('transaction', handleAccountEvent);
+        $network.api.connection.on('transaction', handleAccountEvent);
 
         function handleAccountEvent(e) {
           $scope.$apply(function () {
             if (e.transaction.hash === hash) {
               setEngineStatus(e, true);
-              $network.remote.removeListener('transaction', handleAccountEvent);
+              $network.api.connection.removeListener('transaction', handleAccountEvent);
+              $timeout(function() {
+                $scope.toggle_form();
+              }, 2000);
             }
           });
         }
@@ -350,7 +291,6 @@ TrustTab.prototype.angular = function (module) {
 
       updateAccountLines();
 
-
       $scope.saveAddress = function() {
         $scope.addressSaving = true;
 
@@ -375,15 +315,16 @@ TrustTab.prototype.angular = function (module) {
       };
     }]);
 
-  module.controller('AccountRowCtrl', ['$scope', 'rpBooks', 'rpNetwork', 'rpId', 'rpKeychain', '$timeout',
+  module.controller('AccountRowCtrl', [
+    '$scope', 'rpBooks', 'rpNetwork', 'rpId', 'rpKeychain', '$timeout',
     function ($scope, books, $network, id, keychain, $timeout) {
-
       $scope.validation_pattern = /^0*(([0-9]*.?[0-9]*)|(.0*[1-9][0-9]*))$/;
       var AuthEnabled = 0x00040000;
 
       $scope.$watch('account', function() {
         $scope.disallowAuth = !($scope.account.Flags & AuthEnabled);
       }, true);
+
       $scope.cancel = function () {
         $scope.editing = false;
       };
@@ -391,16 +332,16 @@ TrustTab.prototype.angular = function (module) {
       $scope.edit_account = function() {
         $scope.editing = true;
 
-
         $scope.trust = {};
         $scope.trust.limit = Number($scope.component.limit.to_json().value);
         $scope.trust.limit_peer = Number($scope.component.limit_peer.to_json().value);
         $scope.trust.balance = String($scope.component.balance.to_json().value);
         $scope.trust.balanceAmount = $scope.component.balance;
 
-        var currency = Currency.from_human($scope.component.currency);
+        var currency = deprecated.Currency.from_human($scope.component.currency);
 
-        if (currency.to_human({full_name: $scope.currencies_all_keyed[currency.get_iso()]})) {
+        if (currency.to_human({
+            full_name: $scope.currencies_all_keyed[currency.get_iso()]})) {
           $scope.trust.currency = currency.to_human({
             full_name: $scope.currencies_all_keyed[currency]
           });
@@ -410,177 +351,82 @@ TrustTab.prototype.angular = function (module) {
           });
         }
 
-        // $scope.trust.currency = currency.to_human({full_name:$scope.currencies_all_keyed[currency.get_iso()].name});
         $scope.trust.counterparty = $scope.component.account;
-
-        $scope.load_orderbook();
       };
 
       $scope.delete_account = function() {
         $scope.trust.loading = true;
-        $scope.load_notification('remove_trustline');
+        $scope.load_notification('removing');
 
-        var setSecretAndSubmit = function(tx) {
-          keychain.requestSecret(id.account, id.username, function (err, secret) {
-            if (err) {
-              $scope.mode = 'error';
-              console.log('Error on requestSecret: ', err);
+        if ($scope.trust.balance !== '0') {
+          $scope.trust.loading = false;
+          $scope.load_notification('nonzero_balance');
+          return;
+        }
+
+        var onTransactionError = function(res) {
+          setImmediate(function () {
+            $scope.$apply(function() {
+              console.error('Transaction failed with response:', res);
               $scope.trust.loading = false;
-              $scope.load_notification('error');
-              return;
-            }
+              $scope.load_notification(
+                res.result === 'tejMaxFeeExceeded' ? 'max_fee' : 'remove_error');
+            });
+          });
+        };
 
-            tx.secret(secret);
+        var onTransactionSubmit = function(res) {
+          $scope.$apply(function() {
+            $network.api.connection.on('transaction', handleAccountEvent);
 
-            // If online, submit tx to network to delete trustline
-            // Otherwise display tx blob for user to copy
-            if ($scope.onlineMode) {
-              tx.submit(function(error, res) {
-                if (error) {
-                  $scope.mode = 'error';
-                  $scope.trust.loading = false;
-                  var notification = error.result === 'tejMaxFeeExceeded' ? 'max_fee' : 'error';
-                  $scope.load_notification(notification);
-
-                  return;
-                }
-
-                console.log('Transaction has been submitted with response:', res);
-                $scope.trust.loading = false;
-                $scope.load_notification('trustline_removed');
-              });
-            } else {
-              tx.tx_json.Sequence = Number($scope.sequence);
-              $scope.incrementSequence();
-              // Fee must be converted to drops
-              tx.tx_json.Fee = ripple.Amount.from_json(Options.max_tx_network_fee).to_human() * 1000000;
-              tx.complete();
-              try {
-                $scope.signedTransaction = tx.sign().serialize().to_hex();
-                $scope.txJSON = JSON.stringify(tx.tx_json);
-                $scope.hash = tx.hash('HASH_TX_ID', false, undefined);
-                $scope.saveTransaction(tx);
-              } catch (e) {
-                console.log('Caught error');
-                $scope.trust.loading = false;
-                $scope.load_notification('error');
-                return;
+            function handleAccountEvent(e) {
+              // Must not be called within $scope.$apply since the $scope will
+              // be gone after the trustline is removed.
+              if (e.transaction.hash === res.tx_json.hash) {
+                $scope.load_notification("removed");
+                $network.api.connection.removeListener('transaction', handleAccountEvent);
               }
-
-              $scope.mode = 'offlineEdit';
-              $scope.trust.loading = false;
-              $scope.load_notification('success');
-              $scope.editing = false;
             }
           });
         };
 
-        var nullifyTrustLine = function(idAccount, lineCurrency, lineAccount) {
-          var tx = $network.remote.transaction();
-
-          // Add memo to tx
-          tx.addMemo('client', 'rt' + $scope.version);
-
-          tx.trustSet(idAccount, '0' + '/' + lineCurrency + '/' + lineAccount);
-          var flags = ['ClearFreeze'];
-          if ($scope.acctDefaultRippleFlag) {
-            flags.push('ClearNoRipple');
-          } else {
-            flags.push('SetNoRipple');
-          }
-          tx.setFlags(flags);
-          setSecretAndSubmit(tx);
-        };
-
-        var clearBalance = function(selfAddress, issuerAddress, curr, amountObject, callback) {
-
-          // Decision tree: two paths
-          // 1) There is a market -> send back balance to user as XRP
-          // 2) There is no market -> send back balance to issuer
-
-          var sendBalanceToSelf = function() {
-            var tx = $network.remote.transaction();
-
-            // Add memo to tx
-            tx.addMemo('client', 'rt' + $scope.version);
-
-            var payment = tx.payment(selfAddress, selfAddress, '100000000000');
-
-            payment.setFlags('PartialPayment');
-            payment.sendMax(amountObject.to_human() + '/' + curr + '/' + issuerAddress);
-
-            return tx;
-          };
-
-          var sendBalanceToIssuer = function() {
-            var tx = $network.remote.transaction();
-
-            // Add memo to tx
-            tx.addMemo('client', 'rt' + $scope.version);
-
-            var amount = amountObject.clone();
-            var newAmount = amount.set_issuer(issuerAddress);
-            var payment = tx.payment(selfAddress, issuerAddress, newAmount);
-
-            return tx;
-          };
-
-          var tx = ($scope.orderbookStatus === 'exists') ? sendBalanceToSelf() : sendBalanceToIssuer();
-
-          setSecretAndSubmit(tx);
-
-          tx.once('proposed', callback);
-        };
-
-        // $scope.counterparty inside the clearBalance callback function does not have counterparty in its scope, therefore, we need an immediate function to capture it.
-
-        if ($scope.trust.balance !== '0') {
-          (function (counterparty) {
-            clearBalance(id.account, $scope.trust.counterparty, $scope.trust.currency, $scope.trust.balanceAmount, function() {
-              nullifyTrustLine(id.account, $scope.trust.currency, counterparty);
-            });
-          })($scope.trust.counterparty);
-        } else {
-          nullifyTrustLine(id.account, $scope.trust.currency, $scope.trust.counterparty);
-        }
-
-      };
-
-      $scope.load_orderbook = function() {
-        $scope.orderbookStatus = false;
-
-        if ($scope.book) {
-          $scope.book.unsubscribe();
-        }
-
-        $scope.book = books.get({
-          currency: $scope.trust.currency,
-          issuer: $scope.trust.counterparty
-        }, {
-
-          currency: 'XRP',
-          issuer: undefined
-        });
-
-        $scope.$watchCollection('book', function () {
-          if (!$scope.book.updated) {
+        keychain.requestSecret(id.account, id.username, function (err, secret) {
+          if (err) {
+            console.error('Error on requestSecret: ', err);
+            $scope.trust.loading = false;
+            $scope.load_notification('remove_error');
             return;
           }
 
-          if ($scope.book.asks.length !== 0 && $scope.book.bids.length !== 0) {
-            $scope.orderbookStatus = 'exists';
-          } else {
-            $scope.orderbookStatus = 'not';
-          }
+          var trustline = {
+            currency: $scope.trust.currency,
+            counterparty: $scope.trust.counterparty,
+            limit: '0',
+            memos:  [{
+              type: $network.api.convertStringToHex('client'),
+              format: $network.api.convertStringToHex('rt' + $scope.version)
+            }],
+            frozen: false,
+            ripplingDisabled: !$scope.acctDefaultRippleFlag
+          };
+
+          $network.api.prepareTrustline(
+              id.account, trustline, Tx.Instructions).then(prepared => {
+            return $network.submitTx(prepared, secret, console.log,
+              onTransactionError, onTransactionSubmit);
+          }).catch(function(err) {
+            console.error(err);
+            $scope.trust.loading = false;
+            $scope.load_notification('remove_error');
+          });
         });
       };
 
       $scope.save_account = function () {
         $scope.trust.loading = true;
+        $scope.load_notification('saving');
 
-        $scope.load_notification('loading');
-
-        var amount = ripple.Amount.from_human(
+        var amount = deprecated.Amount.from_human(
           $scope.trust.limit + ' ' + $scope.component.currency,
           {reference_date: new Date(+new Date() + 5*60000)}
         );
@@ -590,119 +436,85 @@ TrustTab.prototype.angular = function (module) {
         if (!amount.is_valid()) {
           // Invalid amount. Indicates a bug in one of the validators.
           console.log('Invalid amount');
+          $scope.trust.loading = false;
+          $scope.load_notification('save_error');
           return;
         }
 
-        var tx = $network.remote.transaction();
+        var onTransactionSubmit = function(res) {
+          $scope.$apply(function() {
+            $network.api.connection.on('transaction', handleAccountEvent);
 
-        // Add memo to tx
-        tx.addMemo('client', 'rt' + $scope.version);
-        // Set or clear the trust flags
-        // The user may wish to leave the settings unchanged,
-        // in which case the flag is not set on the transaction
-        var flags = [];
-        // NoRipple flag
-        if ($scope.trust.ripplingFlag === 'tfClearNoRipple') {
-          flags.push('ClearNoRipple');
-        } else if ($scope.trust.ripplingFlag === 'tfSetNoRipple') {
-          flags.push('SetNoRipple');
-        }
-        // Auth flag
-        if ($scope.trust.authFlag === 'tfSetfAuth') {
-          flags.push('SetAuth');
-        }
-        // Freeze flag
-        if ($scope.trust.freezeFlag === 'tfSetFreeze') {
-          flags.push('SetFreeze');
-        } else if ($scope.trust.freezeFlag === 'tfClearFreeze') {
-          flags.push('ClearFreeze');
-        }
-
-        tx
-          .rippleLineSet(id.account, amount)
-          .setFlags(flags)
-          .on('success', function(res) {
-            $scope.$apply(function () {
-              setEngineStatus(res, true);
-              $scope.trust.loading = false
-              $scope.load_notification('success');
-              $scope.editing = false;
-            });
-          })
-          .on('error', function(res) {
-            setImmediate(function() {
-              $scope.$apply(function() {
-                $scope.mode = 'error';
-
-                var notification = res.result === 'tejMaxFeeExceeded' ? 'max_fee' : 'error';
-                $scope.load_notification(notification);
-
-                $scope.trust.loading = false;
-                $scope.editing = false;
+            function handleAccountEvent(e) {
+              $scope.$apply(function () {
+                if (e.transaction.hash === res.tx_json.hash) {
+                  $scope.trust.loading = false;
+                  $scope.editing = false;
+                  $scope.load_notification("saved");
+                  $network.api.connection.removeListener('transaction', handleAccountEvent);
+                }
               });
+            }
+          });
+        };
+
+        var onTransactionError = function(res) {
+          setImmediate(function() {
+            $scope.$apply(function() {
+              console.log('Transaction failed with response:', res);
+              $scope.load_notification(
+                res.result === 'tejMaxFeeExceeded' ? 'max_fee' : 'save_error');
+              $scope.trust.loading = false;
             });
           });
-
-        function setEngineStatus(res, accepted) {
-          $scope.engine_result = res.engine_result;
-          $scope.engine_result_message = res.engine_result_message;
-
-          switch (res.engine_result.slice(0, 3)) {
-          case 'tes':
-            $scope.tx_result = accepted ? 'cleared' : 'pending';
-            break;
-          case 'tem':
-            $scope.tx_result = 'malformed';
-            break;
-          case 'ter':
-            $scope.tx_result = 'failed';
-            break;
-          case 'tec':
-            $scope.tx_result = 'failed';
-            break;
-          case 'tel':
-            $scope.tx_result = 'local';
-            break;
-          case 'tep':
-            console.warn('Unhandled engine status encountered!');
-          }
-        }
+        };
 
         keychain.requestSecret(id.account, id.username, function (err, secret) {
-          // XXX Error handling
           if (err) {
+            console.log('Error on requestSecret: ', err);
+            $scope.load_notification('save_error');
             $scope.trust.loading = false;
-            $scope.load_notification('error');
-
             return;
           }
 
-          $scope.mode = 'granting';
-          tx.secret(secret);
-          if ($scope.onlineMode) {
-            tx.submit();
-          } else {
-            tx.tx_json.Sequence = Number($scope.sequence);
-            $scope.incrementSequence();
-            // Fee must be converted to drops
-            tx.tx_json.Fee = ripple.Amount.from_json(Options.max_tx_network_fee).to_human() * 1000000;
-            tx.complete();
-            try {
-              $scope.signedTransaction = tx.sign().serialize().to_hex();
-              $scope.txJSON = JSON.stringify(tx.tx_json);
-              $scope.hash = tx.hash('HASH_TX_ID', false, undefined);
-              $scope.saveTransaction(tx);
-            } catch (e) {
-              $scope.trust.loading = false;
-              $scope.load_notification('error');
-              return;
-            }
+          var trustline = {
+            currency: amount.currency().get_iso(),
+            counterparty: amount.issuer(),
+            limit: amount.to_text(),
+            memos:  [{
+              type: $network.api.convertStringToHex('client'),
+              format: $network.api.convertStringToHex('rt' + $scope.version)
+            }]
+          };
 
-            $scope.mode = 'offlineEdit';
-            $scope.trust.loading = false;
-            $scope.load_notification('success');
-            $scope.editing = false;
+          // NoRipple flag
+          if ($scope.trust.ripplingFlag === 'tfClearNoRipple') {
+            trustline.ripplingDisabled = false;
+          } else if ($scope.trust.ripplingFlag === 'tfSetNoRipple') {
+            trustline.ripplingDisabled = true;
           }
+
+          // Auth flag
+          if ($scope.trust.authFlag === 'tfSetfAuth') {
+            trustline.authorized = true;
+          }
+
+          // Freeze flag
+          if ($scope.trust.freezeFlag === 'tfSetFreeze') {
+            trustline.frozen = true;
+          } else if ($scope.trust.freezeFlag === 'tfClearFreeze') {
+            trustline.frozen = false;
+          }
+
+          $network.api.prepareTrustline(
+              id.account, trustline, Tx.Instructions).then(prepared => {
+            return $network.submitTx(prepared, secret, console.log,
+              onTransactionError, onTransactionSubmit);
+          }).catch(function(err) {
+            console.error(err);
+            $scope.trust.loading = false;
+            $scope.load_notification('save_error');
+          });
         });
       };
 
@@ -713,12 +525,7 @@ TrustTab.prototype.angular = function (module) {
       $scope.ripplingEnabled = function() {
         return !$scope.component.no_ripple;
       };
-
-      $scope.close_sign_form = function () {
-        $scope.mode = 'main';
-      };
     }]);
 };
-
 
 module.exports = TrustTab;

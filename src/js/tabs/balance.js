@@ -1,6 +1,5 @@
 var util = require('util'),
   Tab = require('../client/tab').Tab,
-  Amount = ripple.Amount,
   rewriter = require('../util/jsonrewriter');
 
 var BalanceTab = function() {

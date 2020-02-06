@@ -13,7 +13,7 @@ html.no-js.lt-ie9(ng-app='rp', ng-controller='AppCtrl', ng-class='[$route.curren
 html.no-js(ng-app='rp', ng-controller='AppCtrl', ng-class='[$route.current.tabClass, $route.current.pageMode]', lang='en')
 <!--<![endif]-->
 
-html(ng-app='rp', ng-controller='AppCtrl', ng-class='[$route.current.tabClass, $route.current.pageMode]')
+html(ng-app='rp', ng-strict-di, ng-controller='AppCtrl', ng-class='[$route.current.tabClass, $route.current.pageMode]')
   head
     meta(charset='utf-8')
     title Ripple Admin Console
@@ -82,8 +82,7 @@ html(ng-app='rp', ng-controller='AppCtrl', ng-class='[$route.current.tabClass, $
       $.ajaxSetup({
         cache: true
       });
-      var version = '<!-- @echo VERSION -->';
-      $.getScript('js/app.js?v=' + version);
+      $.getScript('js/app.js');
     <!-- @endif -->
 
     // loading state

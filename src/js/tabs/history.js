@@ -3,8 +3,7 @@ var util = require('util'),
     Tab = require('../client/tab').Tab,
     rewriter = require('../util/jsonrewriter'),
     fs = require('fs'),
-    Amount = ripple.Amount,
-    gui = require('nw.gui'),
+    gui = window.require('nw.gui'),
     json2csv = require('json2csv');
 
 var HistoryTab = function ()
@@ -111,11 +110,11 @@ HistoryTab.prototype.angular = function (module) {
       };
 
       var getTx = function(){
-        $network.remote.requestAccountTransactions(params)
-        .on('success', function(data) {
+        $network.api.request('account_tx', params)
+        .then(data => {
           if (data.transactions.length) {
             for(var i=0;i<data.transactions.length;i++) {
-              var date = ripple.utils.toTimestamp(data.transactions[i].tx.date);
+              var date = deprecated.utils.toTimestamp(data.transactions[i].tx.date);
 
               if(date < dateMin.getTime()) {
                 completed = true;
@@ -126,7 +125,7 @@ HistoryTab.prototype.angular = function (module) {
                 continue;
 
               // Push
-              var tx = rewriter.processTxn(data.transactions[i].tx, data.transactions[i].meta, $id.account);
+              var tx = rewriter.processTxn($network.api, data.transactions[i].tx, data.transactions[i].meta, $id.account);
               if (tx) history.push(tx);
             }
 
@@ -146,7 +145,10 @@ HistoryTab.prototype.angular = function (module) {
           } else {
             callback(history);
           }
-        }).request();
+        })
+        .catch(function(error) {
+          console.log("Error request 'account_tx': ", error);
+        })
       };
 
       getTx(0);
@@ -252,7 +254,7 @@ HistoryTab.prototype.angular = function (module) {
           }
 
           var affectedCurrencies = _.map(event.affected_currencies, function (currencyCode) {
-            return ripple.Currency.from_json(currencyCode).to_human();
+            return deprecated.Currency.from_json(currencyCode).to_human();
           });
 
           // Update currencies
@@ -420,8 +422,8 @@ HistoryTab.prototype.angular = function (module) {
         binary: false
       };
 
-      $network.remote.requestAccountTransactions(params)
-      .on('success', function(data) {
+      $network.api.request('account_tx', params)
+      .then(data => {
         $scope.$apply(function () {
           if (data.transactions.length < limit) {
 
@@ -433,9 +435,9 @@ HistoryTab.prototype.angular = function (module) {
             var transactions = [];
 
             data.transactions.forEach(function (e) {
-              var tx = rewriter.processTxn(e.tx, e.meta, $id.account);
+              var tx = rewriter.processTxn($network.api, e.tx, e.meta, $id.account);
               if (tx) {
-                var date = ripple.utils.toTimestamp(tx.date);
+                var date = deprecated.utils.toTimestamp(tx.date);
 
                 if (dateMin && dateMax) {
                   if (date < dateMin.getTime() || date > dateMax.getTime())
@@ -454,9 +456,13 @@ HistoryTab.prototype.angular = function (module) {
             $scope.historyState = (history.length === newHistory.length) ? 'full' : 'ready';
             history = newHistory;
             updateHistory();
+
           }
         });
-      }).request();
+      })
+      .catch(function(error) {
+        console.log("Error request 'account_tx': ", error);
+      });
     }
 
     var exists = function(pty) {
@@ -473,7 +479,7 @@ HistoryTab.prototype.angular = function (module) {
     var formatAmount = function(amount) {
       var formatted = '';
 
-      if (amount instanceof Amount) {
+      if (amount instanceof deprecated.Amount) {
         formatted = amount.to_human({group_sep: false, precision: 2});
 
         // If amount is very small and only has zeros (ex. 0.0000), raise precision
@@ -505,13 +511,13 @@ HistoryTab.prototype.angular = function (module) {
 
       // Convert the fields of interest in buy & sell Amounts to strings in Key/Value pairs
       function getOrderDetails(keyVal, buy, sell) {
-        if (buy !== null && buy instanceof Amount) {
+        if (buy !== null && buy instanceof deprecated.Amount) {
           keyVal.SentAmount = formatAmount(buy);
           keyVal.SentCcy = buy.currency().get_iso();
           keyVal.SentIssuer = buy.issuer() === xrpIssuer ? 'NA' : buy.issuer();
         }
 
-        if (sell !== null && sell instanceof Amount) {
+        if (sell !== null && sell instanceof deprecated.Amount) {
           keyVal.RecvAmount = formatAmount(sell);
           keyVal.RecvCcy = sell.currency().get_iso();
           keyVal.RecvIssuer = sell.issuer() === xrpIssuer ? 'NA' : sell.issuer();
@@ -554,7 +560,7 @@ HistoryTab.prototype.angular = function (module) {
         lineTemplate.Date = dateTime.format('YYYY-MM-DD');
         lineTemplate.Time = dateTime.format('HH:mm:ss');
         lineTemplate.LedgerNum = histLine.ledger_index;
-        lineTemplate.Fee = formatAmount(Amount.from_json(histLine.fee));
+        lineTemplate.Fee = formatAmount(deprecated.Amount.from_json(histLine.fee));
         lineTemplate.TransHash = histLine.hash;
 
         // Default type-specific fields to NA, they will be overridden later if applicable
@@ -595,7 +601,7 @@ HistoryTab.prototype.angular = function (module) {
 
           if (exists(transaction.amountSent)) {
             var amtSent = transaction.amountSent;
-            linePayment.SentAmount = exists(amtSent.value) ? amtSent.value : formatAmount(Amount.from_json(amtSent));
+            linePayment.SentAmount = exists(amtSent.value) ? amtSent.value : formatAmount(deprecated.Amount.from_json(amtSent));
             linePayment.SentCcy = exists(amtSent.currency) ? amtSent.currency : 'XRP';
             if (exists(transaction.sendMax)) {
               linePayment.SentIssuer = transaction.sendMax.issuer === xrpIssuer ? 'NA' : transaction.sendMax.issuer;

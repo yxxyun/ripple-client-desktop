@@ -5,19 +5,11 @@
  */
 var Options = {
   // Rippled to connect
-  server: {
+  connection: {
+    server: 'wss://s1.ripple.com',
     trace: false,
-    trusted: true,
-    local_signing: true,
-
-    servers: [
-      { host: 's-west.ripple.com', port: 443, secure: true },
-      { host: 's-east.ripple.com', port: 443, secure: true }
-    ]
-  },
-
-  api: {
-    servers: ['wss://s-west.ripple.com:443', 'wss://s-east.ripple.com:443']
+    maxFeeXRP: '0.0002',
+    timeout: 30000,
   },
 
   // Number of transactions each page has in balance tab notifications
@@ -25,9 +17,6 @@ var Options = {
 
   // Number of ledgers ahead of the current ledger index where a tx is valid
   tx_last_ledger: 3,
-
-  // Set max transaction fee for network in drops of XRP
-  max_tx_network_fee: 200000,
 
   // Set max number of rows for orderbook
   orderbook_max_rows: 20,
@@ -38,30 +27,15 @@ var Options = {
   persistent_auth: false
 };
 
-Options.defaultServers = Options.server.servers;
-
 // Load client-side overrides
 if (store.enabled) {
   var settings = JSON.parse(store.get('ripple_settings') || '{}');
-
-  if (settings.server && settings.server.servers) {
-    var servers = _.filter(settings.server.servers, function(s) {
-      return !s.isEmptyServer && _.isNumber(s.port) && !_.isNaN(s.port);
+  if (settings.connection) {
+    Object.keys(Options.connection).forEach(function(key) {
+      if (Options.connection[key] && !settings.connection[key]) {
+        settings.connection[key] = Options.connection[key];
+      }
     });
-
-    if (!servers.length) {
-      servers = Options.servers;
-    }
-
-    Options.server = settings.server;
-  }
-
-  // The new ripple-lib API should use the same servers as the deprecated API
-  Options.api.servers = _.map(Options.server.servers, function(server) {
-    return 'wss://' + server.host + ':' + server.port;
-  });
-
-  if (settings.max_tx_network_fee) {
-    Options.max_tx_network_fee = settings.max_tx_network_fee;
+    Options.connection = settings.connection;
   }
 }

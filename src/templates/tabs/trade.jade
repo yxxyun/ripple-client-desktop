@@ -108,7 +108,7 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
 
     .message-select-issuer(ng-hide="order.valid_settings", l10n)
       | You must select a gateway to trade currencies.
-      |  Click the “Change gateway” link above and enter the 
+      |  Click the “Change gateway” link above and enter the
       |  gateway's address.&#32;
 
     group(ng-if="order.valid_settings")
@@ -118,17 +118,17 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
             span(l10n) Bid
             span &#32&#61;&#32;
             span.value
-              | {{book.bids[0].TakerGets | rpamountratio:book.bids[0].TakerPays | rpamount:{rel_precision: 5, rel_min_precision: 5} }}
+              | {{book.bids[0].TakerGetsFunded | rpamountratio:book.bids[0].TakerPaysFunded | rpamount:{rel_precision: 5, rel_min_precision: 5} }}
           li.col-xs-6.col-sm-3
             span(l10n) Ask
             span &#32&#61;&#32;
             span.value
-              | {{book.asks[0].TakerPays | rpamountratio:book.asks[0].TakerGets | rpamount:{rel_precision: 5, rel_min_precision: 5} }}
+              | {{book.asks[0].TakerPaysFunded | rpamountratio:book.asks[0].TakerGetsFunded | rpamount:{rel_precision: 5, rel_min_precision: 5} }}
           li.col-xs-6.col-sm-3
             span(l10n) Spread
             span &#32&#61;&#32;
             span.value
-              | {{book.asks[0].TakerPays | rpamountratio:book.asks[0].TakerGets | rpamountsubtract:(book.bids[0].TakerGets | rpamountratio:book.bids[0].TakerPays) | rpamount:{rel_precision: 5, rel_min_precision: 5} }}
+              | {{book.asks[0].TakerPaysFunded | rpamountratio:book.asks[0].TakerGetsFunded | rpamountsubtract:(book.bids[0].TakerGetsFunded | rpamountratio:book.bids[0].TakerPaysFunded) | rpamount:{rel_precision: 5, rel_min_precision: 5} }}
           li.col-xs-6.col-sm-3
             span(l10n) Last price
             span &#32&#61;&#32;
@@ -138,6 +138,9 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
       //- Show message if account has not been funded yet.
       .unfunded(ng-hide="account.Balance")
         p.literal(l10n) You have to be funded before you can trade
+
+      .trade-embeded-chart(
+        ng-bind-html="tradeEmbeddedHTML")
 
       //- 1. Order widgets
       group.row.send-widgets(ng-show="account.Balance && !readOnly")
@@ -161,7 +164,7 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
               span.available(ng-show="type == 'buy'", l10n)
                 span.amount
                   span(ng-show="order.second_currency.is_native()")
-                    | {{account.Balance | rpamount}} XRP
+                    | {{account.Balance }} XRP
                   span(ng-hide="order.second_currency.is_native()")
                     | {{lines[order.second_issuer+order.second_currency.to_json()].balance || "0" | rpamount}}&#32;
                     span(
@@ -173,7 +176,7 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
               span.available(ng-show="type == 'sell'", l10n)
                 span.amount
                   span(ng-show="order.first_currency.is_native()")
-                    | {{account.Balance | rpamount}} XRP
+                    | {{account.Balance }} XRP
                   span(ng-hide="order.first_currency.is_native()")
                     | {{lines[order.first_issuer+order.first_currency.to_json()].balance || "0" | rpamount}}&#32;
                     span(
@@ -397,14 +400,14 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
           div(ng-hide="isEmpty(offers)")
             .row.head
               .col-sm-1.type(l10n) Type
-              .col-sm-4(l10n) Currencies
+              .col-sm-5(l10n) Currencies
                 span.issuer(l10n-inc)  (Issuer)
               .col-sm-2.price(l10n) Price
-              .col-sm-3.amount(l10n) Amount
+              .col-sm-2.amount(l10n) Amount
               .col-sm-2.action(l10n) Action
           .row(ng-repeat="entry in offers", ng-class="{cancelling: cancelling}")
             .col-sm-1.type(data-label="Type") {{entry.type | rpucfirst}}
-            .col-sm-4(data-label="Currencies")
+            .col-sm-5(data-label="Currencies")
               a(href="",ng-click="goto_order_currency()")
                 span {{entry.first | rpcurrency}}
                 span.issuer(ng-show="entry.first.issuer() && !entry.first.is_native()") &nbsp;(
@@ -424,7 +427,7 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
                   | )
             .col-sm-2.price.rpamount(data-label="Price") {{entry.second | rpamountratio:entry.first | rpamount:{precision: 5, min_precision: 5} }}
               span.currency  {{entry.second | rpcurrency}}
-            .col-sm-3.amount.rpamount(data-label="Amount") {{entry.first | rpamount}}
+            .col-sm-2.amount.rpamount(data-label="Amount") {{entry.first | rpamount}}
               span.currency  {{entry.first | rpcurrency}}
             .col-sm-2.action(rp-spinner="{{cancelling ? 4 : null}}")
               rp-confirm(
@@ -438,10 +441,10 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
           .emptyMessage(ng-show="isEmpty(offers)")
             p.literal(l10n="You haven't placed any orders.") You haven&#39;t placed any orders.
       .alert.alert-danger(ng-show="cancelError")
-        span(l10n) Unable to cancel order.    
-        span(l10n)  Error: {{cancelError}}  
+        span(l10n) Unable to cancel order.
+        span(l10n)  Error: {{cancelError}}
         a.dismiss(href="", ng-click="dismissCancelError()", l10n)  hide
-        
+
       h3(ng-hide="readOnly")
         span(l10n) Orderbook
         small.toggle(ng-click="hideOrderBook = !hideOrderBook")
@@ -455,32 +458,32 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
               .title(l10n) Bids
               .row.head(ng-show="book.bids.length")
                 .col-xs-4.sum(l10n) Sum
-                  .currency {{book.bids[0].TakerPays | rpcurrency}}
+                  .currency {{book.bids[0].TakerPaysFunded | rpcurrency}}
                   .issuer(
-                    ng-show="(book.bids[0].TakerPays | rpcurrency) !== 'XRP'"
-                    rp-pretty-issuer="book.bids[0].TakerPays | rpissuer"
+                    ng-show="(book.bids[0].TakerPaysFunded | rpcurrency) !== 'XRP'"
+                    rp-pretty-issuer="book.bids[0].TakerPaysFunded | rpissuer"
                     rp-pretty-issuer-contacts="userBlob.data.contacts"
                     rp-pretty-issuer-or-short)
                 .col-xs-4.size(l10n) Size
-                  .currency {{book.bids[0].TakerPays | rpcurrency}}
+                  .currency {{book.bids[0].TakerPaysFunded | rpcurrency}}
                   .issuer(
-                    ng-show="(book.bids[0].TakerPays | rpcurrency) !== 'XRP'"
-                    rp-pretty-issuer="book.bids[0].TakerPays | rpissuer"
+                    ng-show="(book.bids[0].TakerPaysFunded | rpcurrency) !== 'XRP'"
+                    rp-pretty-issuer="book.bids[0].TakerPaysFunded | rpissuer"
                     rp-pretty-issuer-contacts="userBlob.data.contacts"
                     rp-pretty-issuer-or-short)
                 .col-xs-4.price(l10n) Bid Price
-                  .currency {{book.bids[0].TakerGets | rpcurrency}}
+                  .currency {{book.bids[0].TakerGetsFunded | rpcurrency}}
                   .issuer(
-                    ng-show="(book.bids[0].TakerGets | rpcurrency) !== 'XRP'"
-                    rp-pretty-issuer="book.bids[0].TakerGets | rpissuer"
+                    ng-show="(book.bids[0].TakerGetsFunded | rpcurrency) !== 'XRP'"
+                    rp-pretty-issuer="book.bids[0].TakerGetsFunded | rpissuer"
                     rp-pretty-issuer-contacts="userBlob.data.contacts"
                     rp-pretty-issuer-or-short)
-              .row(ng-repeat='order in book.bids', ng-class="{my: order.my, cancelling: cancelling}", title="{{order.Account}}")
+              .row(ng-repeat='order in book.bids', ng-class="{my: order.my, cancelling: cancelling}", title="{{order.Accounts}}")
                 .col-xs-4.rpamount.sum
                   a(href=""
                     ng-click="fill_widget('sell',order,true)")
                     span(rp-bind-color-amount="order.showSum")
-                .col-xs-4.rpamount.size(rp-bind-color-amount="order.showTakerPays")
+                .col-xs-4.rpamount.size(rp-bind-color-amount="order.showTakerPaysFunded")
                 .col-xs-4.rpamount.price
                   a(href="", ng-click="fill_widget('sell',order)")
                     span(rp-bind-color-amount="order.showPrice")
@@ -489,31 +492,31 @@ section.col-xs-12.content(ng-controller="TradeCtrl")
               .title(l10n) Asks
               .row.head(ng-show="book.asks.length")
                 .col-xs-4.price(l10n) Ask Price
-                  .currency {{book.asks[0].TakerPays | rpcurrency}}
+                  .currency {{book.asks[0].TakerPaysFunded | rpcurrency}}
                   .issuer(
-                    ng-show="(book.asks[0].TakerPays | rpcurrency) !== 'XRP'"
-                    rp-pretty-issuer="book.asks[0].TakerPays | rpissuer"
+                    ng-show="(book.asks[0].TakerPaysFunded | rpcurrency) !== 'XRP'"
+                    rp-pretty-issuer="book.asks[0].TakerPaysFunded | rpissuer"
                     rp-pretty-issuer-contacts="userBlob.data.contacts"
                     rp-pretty-issuer-or-short)
                 .col-xs-4.size(l10n) Size
-                  .currency {{book.asks[0].TakerGets | rpcurrency}}
+                  .currency {{book.asks[0].TakerGetsFunded | rpcurrency}}
                   .issuer(
-                    ng-show="(book.asks[0].TakerGets | rpcurrency) !== 'XRP'"
-                    rp-pretty-issuer="book.asks[0].TakerGets | rpissuer"
+                    ng-show="(book.asks[0].TakerGetsFunded | rpcurrency) !== 'XRP'"
+                    rp-pretty-issuer="book.asks[0].TakerGetsFunded | rpissuer"
                     rp-pretty-issuer-contacts="userBlob.data.contacts"
                     rp-pretty-issuer-or-short)
                 .col-xs-4.sum(l10n) Sum
-                  .currency {{book.asks[0].TakerGets | rpcurrency}}
+                  .currency {{book.asks[0].TakerGetsFunded | rpcurrency}}
                   .issuer(
-                    ng-show="(book.asks[0].TakerGets | rpcurrency) !== 'XRP'"
-                    rp-pretty-issuer="book.asks[0].TakerGets | rpissuer"
+                    ng-show="(book.asks[0].TakerGetsFunded | rpcurrency) !== 'XRP'"
+                    rp-pretty-issuer="book.asks[0].TakerGetsFunded | rpissuer"
                     rp-pretty-issuer-contacts="userBlob.data.contacts"
                     rp-pretty-issuer-or-short)
-              .row(ng-repeat='order in book.asks', ng-class="{my: order.my, cancelling: cancelling}", title="{{order.Account}}")
+              .row(ng-repeat='order in book.asks', ng-class="{my: order.my, cancelling: cancelling}", title="{{order.Accounts}}")
                 .col-xs-4.rpamount.price
                   a(href="", ng-click="fill_widget('buy',order)")
                     span(rp-bind-color-amount="order.showPrice")
-                .col-xs-4.rpamount.size(rp-bind-color-amount="order.showTakerGets")
+                .col-xs-4.rpamount.size(rp-bind-color-amount="order.showTakerGetsFunded")
                 .col-xs-4.rpamount.sum
                   a(href=""
                     ng-click="fill_widget('buy',order,true)")

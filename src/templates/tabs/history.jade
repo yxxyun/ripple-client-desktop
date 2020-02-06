@@ -14,7 +14,7 @@ section.col-xs-12.content(ng-controller="HistoryCtrl")
 
   //- Show message if account has not been funded yet.
   .unfunded(ng-show="!account.Balance && connected")
-    p.literal(l10n) You have to be funded before you can view history  
+    p.literal(l10n) You have to be funded before you can view history
 
   //- Connected
 
@@ -59,13 +59,13 @@ section.col-xs-12.content(ng-controller="HistoryCtrl")
                     .input-group-addon
                       i.fa.fa-calendar
                       span(l10n) &#32;From
-                    .input-wrapper  
+                    .input-wrapper
                       input.form-control(type="text", rp-datepicker, ng-model="dateMinView", readonly)
                   .input-group.inline-inputs-group
                     .input-group-addon
                       i.fa.fa-calendar
                       span(l10n) &#32;To
-                    .input-wrapper  
+                    .input-wrapper
                       input.form-control(type="text", rp-datepicker, ng-model="dateMaxView", readonly)
                   button.btn.btn-block.btn-primary.submit(type='submit', l10n) Filter
             //- .filter.amount-filter
@@ -91,7 +91,7 @@ section.col-xs-12.content(ng-controller="HistoryCtrl")
       .message(ng-hide="historyState=='loading' || historyShow", l10n)
         | Sorry, no transactions match your current filter.
       ul
-        li(class="{{entry.transaction.type}}", ng-repeat="entry in historyShow track by entry.hash"
+        li(class="{{entry.transaction.type}}", ng-repeat="entry in historyShow track by $index"
             ng-click='details[entry.hash] = !details[entry.hash]'
             ng-class="{open: details[entry.hash]}"
             rp-pretty-amount-date="entry.dateRaw")
@@ -115,7 +115,7 @@ section.col-xs-12.content(ng-controller="HistoryCtrl")
                 span.desc(ng-hide="entry.details", ng-switch="entry.transaction.type")
                   span(ng-switch-when="sent")
                     span(l10n, rp-span-spacing) You sent
-                      span.amount(rp-pretty-amount="entry.transaction.amountSent || entry.transaction.amount")
+                      span.amount(rp-pretty-amount="entry.transaction.amount || entry.transaction.amountSent")
                       | to
                       span.address(rp-pretty-identity="entry.transaction.counterparty")
                     include ./history/_effects.jade

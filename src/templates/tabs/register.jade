@@ -60,7 +60,7 @@ section.col-xs-12.content(ng-controller="RegisterCtrl")
       h2(l10n) Create account with secret key
 
       form(name='useSecretKey', ng-submit='submitSecretKeyForm()')
-        .form-group(ng-class="{'field-error': registerForm.secret.$error.rpMasterKey && registerForm.secret.$dirty}")
+        .form-group(ng-class="{'field-error': useSecretKey.secretKey.$error.rpMasterKey && useSecretKey.secretKey.$dirty}")
 
           label(for="masterkey", l10n) Enter your secret key
           | &#32;
@@ -74,8 +74,29 @@ section.col-xs-12.content(ng-controller="RegisterCtrl")
           input.form-control#secretKey(type="password", name="secretKey"
           ng-model="secretKey", rp-master-key, required, rp-focus)
 
-          p(ng-show="useSecretKey.secret.$error.rpMasterKey && registerForm.secret.$dirty")
+          p(ng-show="useSecretKey.secretKey.$error.rpMasterKey && useSecretKey.secretKey.$dirty")
             span(l10n) Secret is invalid
+
+          input#isRegularKey(type="checkbox", name="isRegularKey" ng-model="isRegularKey", rp-focus)
+
+          label(for="isRegularKey", l10n) This is a regular key
+
+          div(ng-show="isRegularKey")
+            label(for="accountID", l10n) Enter the account ID associated with the regular key
+            | &#32;
+            i.fa.fa-question-circle(
+            rp-popover
+            rp-popover-placement="bottom"
+            rp-popover-title="Enter the account ID"
+            rp-popover-trigger="hover"
+            l10n-data-content="This is the account ID associated with your regular key.")
+
+            input.form-control#accountID(type="text", name="accountID"
+            ng-model="accountID", ng-required="isRegularKey", rp-focus)
+
+            // TODO(r0bertz): Create an account ID validator directive.
+            // p(ng-show="useSecretKey.accountID.$error.rpAccountID && useSecretKey.accountID.$dirty")
+            //   span(l10n) Account ID is invalid
 
         .submit-btn-container
           button.btn.btn-block.btn-success(type='submit'

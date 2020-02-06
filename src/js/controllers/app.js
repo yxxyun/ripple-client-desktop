@@ -6,7 +6,6 @@
 
 var rewriter = require('../util/jsonrewriter'),
   genericUtils = require('../util/generic'),
-  Amount = ripple.Amount,
   RippleAddress = require('../util/types').RippleAddress,
   fs = require('fs');
 
@@ -14,7 +13,7 @@ var module = angular.module('app', []);
 
 module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
                               'rpKeychain', '$route', '$timeout', 'rpFileDialog',
-                              function ($scope, $compile, $id, $net,
+                              function ($scope, $compile, $id, $network,
                                         keychain, $route, $timeout, fileDialog)
 {
   reset();
@@ -50,7 +49,7 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
   // Remember the onlineMode switch value and handle the connection
   $scope.switchOnlineMode = function(){
     $scope.onlineMode = !$scope.onlineMode;
-    $scope.onlineMode ? $net.connect() : $net.disconnect();
+    $scope.onlineMode ? $network.connect() : $network.disconnect();
     store.set('onlineMode', $scope.onlineMode);
   };
 
@@ -104,7 +103,7 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
   // Global reference for debugging only (!)
   if ("object" === typeof rippleclient) {
     rippleclient.id = $id;
-    rippleclient.net = $net;
+    rippleclient.network = $network;
     rippleclient.keychain = keychain;
   }
 
@@ -142,89 +141,113 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
     reset();
   }
 
-  var myHandleAccountEvent;
-  var myHandleAccountEntry;
-
   function handleAccountLoad(e, data)
   {
-    var remote = $net.remote;
-
     // If user logs in with regular key wallet
     // check to see if wallet is still valid
-    remote.requestAccountInfo({
-      account: data.account
-    }, function(accountError, accountInfo) {
-      var invalidRegularWallet = false;
-      if (accountError) {
-        // Consider wallet valid
-        console.log('Error getting account data: ', accountError);
-      } else if ($scope.userBlob.data.regularKey && !$scope.userBlob.data.masterkey) {
-        // If we are using a regular wallet file (no masterkey)
-        // check to see if regular key is valid
-        var regularKeyPublic = new RippleAddress($scope.userBlob.data.regularKey).getAddress();
-        if (regularKeyPublic !== accountInfo.account_data.RegularKey) {
-          invalidRegularWallet = true;
+    $network.api.getSettings(data.account).then(settings => {
+      $scope.$apply(function() {
+        var invalidRegularWallet = false;
+        if ($scope.userBlob.data.regularKey && !$scope.userBlob.data.masterkey) {
+          // If we are using a regular wallet file (no masterkey)
+          // check to see if regular key is valid
+          var regularKeyPublic = new RippleAddress($scope.userBlob.data.regularKey).getAddress();
+          if (regularKeyPublic !== settings.regularKey) {
+            invalidRegularWallet = true;
+          }
         }
-      }
-      $scope.invalidRegularWallet = invalidRegularWallet;
+        $scope.invalidRegularWallet = invalidRegularWallet;
+      });
+    }).catch(function(error) {
+        console.log('Error getSettings: ', error);
     });
 
     account = data.account;
 
     reset();
 
-    var accountObj = remote.account(data.account);
-
-    // We need a reference to these functions after they're bound, so we can
-    // unregister them if the account is unloaded.
-    myHandleAccountEvent = handleAccountEvent;
-    myHandleAccountEntry = handleAccountEntry;
     $scope.loadingAccount = true;
+    $scope.subscribedAccount = false;
 
-    accountObj.on('transaction', myHandleAccountEvent);
-    accountObj.on('entry', function(data){
-      $scope.$apply(function () {
-        $scope.loadingAccount = false;
-        myHandleAccountEntry(data);
-      });
-    });
-
-    accountObj.entry(function (err, entry) {
-      if (err) {
-        $scope.loadingAccount = false;
-        $scope.loadState['account'] = true;
+    $network.api.connection.on('transaction', handleAccountEvent);
+    $network.api.connection.on('transaction', response => {
+      var accountRoot = {};
+      response.meta.AffectedNodes.forEach(function(node) {
+        if (!node.ModifiedNode) return;
+        if (node.ModifiedNode.LedgerEntryType === 'AccountRoot' &&
+            node.ModifiedNode.FinalFields &&
+            node.ModifiedNode.FinalFields.Account === data.account) {
+          accountRoot = $.extend({}, node.ModifiedNode.FinalFields);
+        }
+      })
+      if (!$.isEmptyObject(accountRoot)) {
+        $scope.$apply(function () {
+          $scope.loadingAccount = false;
+          handleAccountEntry(accountRoot);
+        });
       }
     });
 
+    $network.api.request('account_info', {
+      account: data.account,
+      ledger_index: 'validated'
+    }).then(response => {
+      $scope.loadingAccount = false;
+      handleAccountEntry(response.account_data)
+    }).catch(function(error) {
+      console.log('Error getAccountInfo: ', error);
+      $scope.$apply(function () {
+        $scope.loadingAccount = false;
+        $scope.loadState['account'] = true;
+      });
+    });
+
+    $network.api.request('subscribe', {
+      accounts: [ data.account ]
+    }).then(response => {
+      console.log('Subscribed to account "', data.account, '"');
+      $scope.$apply(function () {
+        $scope.subscribedAccount = true;
+      });
+    }).catch(function(error) {
+      console.log('Error subscribe to account "', data.account, '": ', error);
+    });
+
     // Ripple credit lines
-    remote.requestAccountLines({account: data.account})
-      .on('success', handleRippleLines)
-      .on('error', handleRippleLinesError).request();
+    $network.api.request('account_lines', {account: data.account})
+      .then(handleRippleLines)
+      .catch(handleRippleLinesError);
 
     // Transactions
-    remote.requestAccountTransactions({
+    $network.api.request('account_tx', {
       account: data.account,
       ledger_index_min: -1,
-      descending: true,
+      forward: false,
       limit: Options.transactions_per_page,
       binary: false
-    })
-      .on('transactions', handleAccountTx)
-      .on('error', handleAccountTxError).request();
+    }).then(handleAccountTx)
+      .catch(handleAccountTxError);
 
     // Outstanding offers
-    remote.requestAccountOffers({ account: data.account})
-      .on('success', handleOffers)
-      .on('error', handleOffersError).request();
+    $network.api.request('account_offers', {account: data.account})
+      .then(handleOffers)
+      .catch(handleOffersError);
   }
 
   function handleAccountUnload(e, data)
   {
-    if (myHandleAccountEvent && myHandleAccountEntry) {
-      var remote = $net.remote;
-      var accountObj = remote.account(data.account);
-      accountObj.removeListener('transaction', myHandleAccountEvent);
-      accountObj.removeListener('entry', myHandleAccountEntry);
+    if ($scope.subscribedAccount) {
+      $network.api.request('unsubscribe', {
+        accounts: [ data.account ]
+      }).then(response => {
+        console.log('Unsubscribed to account "', data.account, '"');
+        $scope.$apply(function () {
+          $scope.subscribedAccount = false;
+        });
+      }).catch(function(error) {
+        console.log('Error unsubscribe to account "', data.account, '": ',
+                    error);
+      });
     }
   }
 
@@ -239,9 +262,9 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
         // XXX: This reinterpretation of the server response should be in the
         //      library upstream.
         line = $.extend({}, line, {
-          limit: ripple.Amount.from_json({value: line.limit, currency: line.currency, issuer: line.account}),
-          limit_peer: ripple.Amount.from_json({value: line.limit_peer, currency: line.currency, issuer: account}),
-          balance: ripple.Amount.from_json({value: line.balance, currency: line.currency, issuer: account})
+          limit: deprecated.Amount.from_json({value: line.limit, currency: line.currency, issuer: line.account}),
+          limit_peer: deprecated.Amount.from_json({value: line.limit_peer, currency: line.currency, issuer: line.account}),
+          balance: deprecated.Amount.from_json({value: line.balance, currency: line.currency, issuer: line.account})
         });
 
         $scope.lines[line.account+line.currency] = line;
@@ -268,8 +291,8 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
       data.offers.forEach(function (offerData) {
         var offer = {
           seq: +offerData.seq,
-          gets: ripple.Amount.from_json(offerData.taker_gets),
-          pays: ripple.Amount.from_json(offerData.taker_pays),
+          gets: deprecated.Amount.from_json(offerData.taker_gets),
+          pays: deprecated.Amount.from_json(offerData.taker_pays),
           flags: offerData.flags
         };
 
@@ -289,44 +312,47 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
     });
   }
 
+  function reserve(serverInfo, OwnerCount) {
+    return Number(serverInfo.validatedLedger.reserveBaseXRP) +
+        Number(serverInfo.validatedLedger.reserveIncrementXRP) * OwnerCount;
+  }
+
   function handleAccountEntry(data)
   {
-    var remote = $net.remote;
-
-    // Only overwrite account data if the new data has a bigger sequence number (is a newer information)
-    if ($scope.account && $scope.account.Sequence && $scope.account.Sequence >= data.Sequence) {
+    // Only overwrite account data if the new data has a bigger sequence number
+    // (is a newer information)
+    if ($scope.account && $scope.account.Sequence &&
+        $scope.account.Sequence >= data.Sequence) {
       return;
     }
 
-    $scope.account = data;
+    $network.api.getServerInfo().then(serverInfo => {
+      $scope.$apply(() => {
+        var OwnerCount = data.OwnerCount || 0;
+        data.Balance = Number(data.Balance) / 1000000;
+        data.reserve_base = reserve(serverInfo, 0);
+        data.reserve = reserve(serverInfo, OwnerCount);
+        data.reserve_to_add_trust = reserve(serverInfo, OwnerCount+1);
+        data.reserve_low_balance = data.reserve * 2;
 
-    // XXX Shouldn't be using private methods
-    var server = remote._getServer();
+        // Maximum amount user can spend
+        data.max_spend = data.Balance - data.reserve;
 
-    // As per json wire format convention, real ledger entries are CamelCase,
-    // e.g. OwnerCount, additional convenience fields are lower case, e.g.
-    // reserve, max_spend.
-    var ownerCount  = $scope.account.OwnerCount || 0;
-    $scope.account.reserve_base = server._reserve(0);
-    $scope.account.reserve = server._reserve(ownerCount);
-    $scope.account.reserve_to_add_trust = server._reserve(ownerCount+1);
-    $scope.account.reserve_low_balance = $scope.account.reserve.product_human(2);
-
-    // Maximum amount user can spend
-    var bal = Amount.from_json(data.Balance);
-    $scope.account.max_spend = bal.subtract($scope.account.reserve);
-
-    $scope.loadState['account'] = true;
+        $scope.account = data;
+        $scope.loadState['account'] = true;
+      });
+    }).catch(error => {
+      console.log('Error getServerInfo: ', error);
+    });
   }
 
-  function handleAccountTx(data)
-  {
+  function handleAccountTx(data){
     $scope.$apply(function () {
       $scope.tx_marker = data.marker;
 
       if (data.transactions) {
         data.transactions.reverse().forEach(function (e, key) {
-          processTxn(e.tx, e.meta, true);
+          processTxn($network.api, e.tx, e.meta, true);
         });
 
         $scope.$broadcast('$eventsUpdate');
@@ -346,7 +372,7 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
   function handleAccountEvent(e)
   {
     $scope.$apply(function () {
-      processTxn(e.transaction, e.meta);
+      processTxn($network.api, e.transaction, e.meta);
       $scope.$broadcast('$eventsUpdate');
     });
   }
@@ -354,9 +380,9 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
   /**
    * Process a transaction and add it to the history table.
    */
-  function processTxn(tx, meta, is_historic)
+  function processTxn(api, tx, meta, is_historic)
   {
-    var processedTxn = rewriter.processTxn(tx, meta, account);
+    var processedTxn = rewriter.processTxn(api, tx, meta, account);
 
     if (processedTxn && processedTxn.error) {
       var err = processedTxn.error;
@@ -367,11 +393,6 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
       $scope.history.unshift(processedTxn);
     } else if (processedTxn) {
       var transaction = processedTxn.transaction;
-
-      // Update account
-      if (processedTxn.accountRoot) {
-        handleAccountEntry(processedTxn.accountRoot);
-      }
 
       // Show status notification
       if (processedTxn.tx_result === "tesSUCCESS" &&
@@ -458,7 +479,7 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
 
   function updateOffer(offer)
   {
-    if (offer.flags && offer.flags === ripple.Remote.flags.offer.Sell) {
+    if (offer.flags && offer.flags === deprecated.Remote.flags.offer.Sell) {
       offer.type = 'sell';
       offer.first = offer.gets;
       offer.second = offer.pays;
@@ -481,17 +502,16 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
 
     var balancesUpdated;
 
-    $.each(effects, function () {
+    effects.forEach(function (effect) {
       if (_.includes([
         'trust_create_local',
         'trust_create_remote',
         'trust_change_local',
         'trust_change_remote',
         'trust_change_balance',
-        'trust_change_flags'], this.type))
+        'trust_change_flags'], effect.type))
       {
-        var effect = this,
-            line = {},
+        var line = {},
             index = effect.counterparty + effect.currency;
 
         line.currency = effect.currency;
@@ -503,9 +523,7 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
 
         if (effect.balance) {
           line.balance = effect.balance;
-          updateRippleBalance(effect.currency,
-                                    effect.counterparty,
-                                    effect.balance);
+          updateRippleBalance(effect.currency, effect.counterparty, effect.balance);
           balancesUpdated = true;
         }
 
@@ -562,7 +580,7 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
   _.forEach($scope.currencies_all, function(currency) {
 
     // find the currency in the local storage
-    var allCurrencyHit = _.where(storeCurrenciesAll, {value: currency.value})[0];
+    var allCurrencyHit = _.filter(storeCurrenciesAll, {value: currency.value})[0];
 
     // if the currency already exists in local storage, updated only the name
     if (allCurrencyHit) {
@@ -632,6 +650,14 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
   //   }
   // });
 
+  $scope.$on('$netConnected', function() {
+    var address = $scope.address;
+
+    if (address) {
+      $id.setAccount(address);
+    }
+  });
+
   $scope.$on('$idAccountLoad', function (e, data) {
     // fix blob if wrong
     if (_.isArray($scope.userBlob.data.clients)) {
@@ -642,14 +668,6 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
     if ($scope.connected) {
       handleAccountLoad(e, data);
     }
-
-    // Server is not connected yet. Handle account load after server response.
-    $scope.$on('$netConnected', function(){
-      if ($.isEmptyObject($scope.account)) {
-        $scope.$broadcast('$idAccountUnload', {account: $scope.account});
-        handleAccountLoad(e, data);
-      }
-    });
   });
 
   $scope.$on('$idAccountUnload', handleAccountUnload);
@@ -662,27 +680,16 @@ module.controller('AppCtrl', ['$rootScope', '$compile', 'rpId', 'rpNetwork',
     removeFirstConnectionListener();
   }
 
-  $net.listenId($id);
+  $network.listenId($id);
   $id.init();
 
-  $scope.onlineMode ? $net.connect() : $net.disconnect();
+  $scope.onlineMode ? $network.connect() : $network.disconnect();
 
   // Reconnect on server setting changes
-  var netConnectedListener = function(){};
-  $scope.$on('serverChange', function(event, serverSettings) {
+  $scope.$on('serverChange', function(event) {
     if ($scope.onlineMode) {
-      var address = $scope.address;
-
-      $net.disconnect();
-      $net.connect(serverSettings);
-
-      // Remove listener
-      netConnectedListener();
-      netConnectedListener = $scope.$on('$netConnected', function() {
-        console.log('$scope.address', address);
-
-        $id.setAccount(address);
-      });
+      $network.disconnect();
+      $network.connect();
     }
   });
 

@@ -12,14 +12,14 @@ section.col-xs-12.content(ng-controller="SettingsTradeCtrl")
         .section
           .descriptor(l10n) Trade currency pairs
           div(ng-show="!pairs || (pairs && pairs.length == 0)", l10n)
-            | No trade pairs in this account. To add a pair, go to the 
-            a(href="#/trade", l10n-inc) Trade &gt; Advanced 
+            | No trade pairs in this account. To add a pair, go to the
+            a(href="#/trade", l10n-inc) Trade &gt; Advanced
             | section.
           div(ng-if="pairs")
             div(as-sortable="dragControlListeners", ng-model="pairs")
-               div.pair(ng-repeat="entry in pairs track by entry.name", as-sortable-item)
+               div.pair(ng-repeat="entry in pairs track by $index", as-sortable-item)
                 .col-xs-12(as-sortable-item-handle)
                   i.grip
-                  span.description(ng-bind="entry.name")
+                  span.description(ng-bind="entry.label || entry.name")
                   a(href="", ng-click="deletePair($index)")
                     span.delete remove

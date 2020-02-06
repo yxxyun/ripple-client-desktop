@@ -1,7 +1,6 @@
 var util = require('util'),
     webutil = require('../util/web'),
-    Tab = require('../client/tab').Tab,
-    Currency = ripple.Currency;
+    Tab = require('../client/tab').Tab;
 
 var AdvancedTab = function ()
 {
@@ -29,7 +28,7 @@ AdvancedTab.prototype.angular = function(module)
     }
     // XRP currency object.
     // {name: "XRP - Ripples", order: 146, value: "XRP"}
-    var xrpCurrency = Currency.from_json("XRP");
+    var xrpCurrency = deprecated.Currency.from_json("XRP");
 
     $scope.xrp = {
       name: xrpCurrency.to_human({full_name:$scope.currencies_all_keyed.XRP.name}),
@@ -42,13 +41,10 @@ AdvancedTab.prototype.angular = function(module)
     $scope.editBlob = false;
     $scope.editMaxNetworkFee = false;
     $scope.editAcctOptions = false;
-    $scope.max_tx_network_fee_human = ripple.Amount.from_json($scope.options.max_tx_network_fee).to_human();
+    $scope.maxFeeXRP = $scope.options.connection.maxFeeXRP;
 
-    $scope.saveSetings = function() {
-      // force serve ports to be number
-      _.forEach($scope.options.server.servers, function(s) {
-        s.port = +s.port;
-      });
+    // TODO(lezhang): verify this is called in ServerRowCtrl
+    $scope.saveSettings = function() {
       // Save in local storage
       if (!store.disabled) {
         store.set('ripple_settings', angular.toJson($scope.options));
@@ -56,8 +52,7 @@ AdvancedTab.prototype.angular = function(module)
     };
 
     $scope.saveBlob = function() {
-
-      $scope.saveSetings();
+      $scope.saveSettings();
 
       $scope.editBlob = false;
       $scope.saved = false;
@@ -67,81 +62,77 @@ AdvancedTab.prototype.angular = function(module)
     };
 
     $scope.saveMaxNetworkFee = function () {
-      // Save in local storage
-      if (!store.disabled) {
-        $scope.options.max_tx_network_fee = ripple.Amount.from_human($scope.max_tx_network_fee_human).to_json();
-        store.set('ripple_settings', angular.toJson($scope.options));
-      }
-
+      $scope.options.connection.maxFeeXRP = $scope.maxFeeXRP;
       $scope.editMaxNetworkFee = false;
 
+      $scope.saveSettings();
+
       // Reload
-      $scope.$emit('serverChange', $scope.options.server);
+      $scope.$emit('serverChange');
       $route.reload();
     };
 
     $scope.cancelEditMaxNetworkFee = function () {
       $scope.editMaxNetworkFee = false;
-      $scope.options.max_tx_network_fee = $scope.optionsBackup.max_tx_network_fee;
+      $scope.options.connection.maxFeeXRP =
+          $scope.optionsBackup.connection.maxFeeXRP;
     };
 
     $scope.cancelEditAcctOptions = function () {
       $scope.editAcctOptions = false;
     };
 
-    // Add a new server
-    $scope.addServer = function () {
-      // Create a new server line
-      if(!$scope.options.server.servers.isEmptyServer)
-        $scope.options.server.servers.push({isEmptyServer: true, secure: false});
-
-      // Set editing to true
-      $scope.editing = true;
-      
-    };
-
   }]);
+
+  function parseUrl(url) {
+    var u = new URL(url);
+    var server = {
+      host: u.hostname,
+      secure: u.protocol === 'wss:' ? true : false,
+      port: u.port
+    };
+    if (!server.port) {
+      server.port = server.secure ? '443' : '80';
+    }
+    return server;
+  }
+
+  function generateUrl(server) {
+    var protocol = server.secure ? 'wss:' : 'ws:'
+    var url = protocol  + '//' + server.host;
+    if ((server.secure && server.port !== '443') ||
+        (!server.secure && server.port !== '80')) {
+      url += ':' + server.port;
+    }
+    return url
+  }
 
   module.controller('ServerRowCtrl', ['$scope', '$route',
     function ($scope, $route) {
-      $scope.editing = $scope.server.isEmptyServer;
+      $scope.editing = false;
+      $scope.server = parseUrl($scope.options.connection.server);
 
-        // Delete the server
-      $scope.remove = function () {
-        $scope.options.server.servers.splice($scope.index,1);
-
-        $scope.saveSetings();
-        if (!$scope.server.isEmptyServer) {
-          $route.reload();
-        }
-      };
-
-      /*$scope.hasRemove = function () {
-        return !$scope.server.isEmptyServer && $scope.options.server.servers.length !== 1;
-      };*/
+      $scope.server.changePort = function(secure) {
+        $scope.server.port = secure ? '443' : '80';
+      }
 
       $scope.cancel = function () {
-        if ($scope.server.isEmptyServer) {
-          $scope.remove();
-          return;
-        }
-
         $scope.editing = false;
-        $scope.server = $.extend({ '$$hashKey' : $scope.server.$$hashKey }, $scope.optionsBackup.server.servers[$scope.index]);
-        Options.server.servers[$scope.index] = $.extend({}, $scope.optionsBackup.server.servers[$scope.index]);
+        $scope.server = parseUrl($scope.optionsBackup.connection.server);
+        $scope.options.connection.server = $scope.optionsBackup.connection.server;
       };
 
       $scope.noCancel = function () {
-        return $scope.server.isEmptyServer && $scope.options.server.servers.length === 1;
+        return $scope.editing == false;
       };
 
       $scope.save = function () {
-        $scope.server.isEmptyServer = false;
         $scope.editing = false;
+        $scope.options.connection.server = generateUrl($scope.server);
 
-        $scope.saveSetings();
+        $scope.saveSettings();
 
-        $scope.$emit('serverChange', $scope.options.server);
+        $scope.$emit('serverChange');
 
           // Reload
         $route.reload();
@@ -151,7 +142,7 @@ AdvancedTab.prototype.angular = function(module)
 
   module.controller('ProxyCtrl', ['$scope', '$route', function($scope, $route) {
     $scope.init = function() {
-      var proxy = /(https?):\/\/(([^:]*):([^@]*)@)?([^:]*)(:(\d+))?/g.exec(Options.server.proxy);
+      var proxy = /(https?):\/\/(([^:]*):([^@]*)@)?([^:]*)(:(\d+))?/g.exec(Options.connection.proxy);
 
       $scope.proxy = {};
 
@@ -173,9 +164,9 @@ AdvancedTab.prototype.angular = function(module)
 
     $scope.save = function(clear) {
       if (clear) {
-        delete Options.server.proxy;
+        delete Options.connection.proxy;
       } else {
-        Options.server.proxy =
+        Options.connection.proxy =
           ($scope.proxy.secure ? 'https' : 'http') + '://'
             + ($scope.proxy.auth && $scope.proxy.username && $scope.proxy.password
               ? $scope.proxy.username + ':' + $scope.proxy.password + '@' : '')

@@ -4,12 +4,9 @@
  * Form validation directives go into this file.
  */
 
-var webutil = require('../util/web'),
-    Base = ripple.Base,
-    Amount = ripple.Amount,
-    Currency = ripple.Currency;
-
+var codec = require('ripple-address-codec');
 var module = angular.module('validators', []);
+var webutil = require('../util/web');
 
 /**
  * Secret Account Key validator
@@ -22,7 +19,15 @@ module.directive('rpMasterKey', function () {
       if (!ctrl) return;
 
       var validator = function(value) {
-        if (value && !Base.decode_check(33, value)) {
+        var decode_check = function(value) {
+          try {
+            return codec.decodeSeed(value);
+          } catch (e) {
+            return NaN;
+          }
+        }
+
+        if (value && !decode_check(value)) {
           ctrl.$setValidity('rpMasterKey', false);
           return;
         }
@@ -67,7 +72,7 @@ module.directive('rpDest', ['$timeout', '$parse', function ($timeout, $parse) {
 
         ctrl.rpDestType = null;
 
-        if (attr.rpDestAddress && RippleAddressCodec.isValidAddress(strippedValue)) {
+        if (attr.rpDestAddress && RippleAddressCodec.isValidClassicAddress(strippedValue)) {
           ctrl.rpDestType = "address";
           ctrl.$setValidity('rpDest', true);
 
@@ -534,7 +539,7 @@ module.directive('rpAmountXrpLimit', function () {
 
       // We don't use parseAmount here, assuming that you also use rpAmount validator
       var validator = function(value) {
-        var currency = Currency.from_json(attr.rpAmountXrpLimitCurrency);
+        var currency = deprecated.Currency.from_json(attr.rpAmountXrpLimitCurrency);
 
         // If XRP, ensure amount is less than 100 billion and is at least one drop
         if (currency.is_valid() && currency.is_native()) {

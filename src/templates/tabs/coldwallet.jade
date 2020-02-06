@@ -19,10 +19,6 @@ container(ng-controller="ColdWalletCtrl")
               dd {{networkFee}} XRP
               dt Regular Key Enabled
               dd {{regularKeyEnabled}}
-      //div.col-xs-12.col-sm-7
-        div.well
-          p(ng-hide="transactionError") {{lastTxn}} The transaction was validated at {{txnTime | date:'yyyy-MM-dd HH:mm:ss Z'}}.
-          p.error(ng-show="transactionError") {{transactionErrorMessage}}
     div.row.row-content
       div.col-xs-12
         h4 Account Flags 
@@ -58,15 +54,15 @@ container(ng-controller="ColdWalletCtrl")
               tr
                 td XRP
                 td
-                td {{xrpBalance}}
+                td {{Balance}}
               tr.available
                 td Available
                 td
-                td {{ max_spend | rpamount:{precision: 6} }}
+                td {{ max_spend }}
               tr.reserve
                 td Reserve
                 td
-                td {{ reserve | rpamount:{precision: 6} }}
+                td {{ reserve }}
               tr(ng-repeat="balance in lines")
                 td {{balance.currency}}
                 td {{balance.account}}

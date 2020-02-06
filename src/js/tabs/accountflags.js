@@ -1,4 +1,5 @@
 var util = require('util'),
+    Tx = require('../util/tx'),
     Tab = require('../client/tab').Tab;
 
 var AccountFlagsTab = function() {
@@ -29,14 +30,14 @@ AccountFlagsTab.prototype.angular = function(module) {
 
   // AccountRoot flags from the new Ripple lib
   var RemoteFlags = {
-    PasswordSpent: 0x00010000, // password set fee is spent
-    RequireDestTag: 0x00020000, // require a DestinationTag for payments
-    RequireAuth: 0x00040000, // require a authorization to hold IOUs
-    DisallowXRP: 0x00080000, // disallow sending XRP
-    DisableMaster: 0x00100000,  // force regular key
-    DefaultRipple: 0x00800000,
-    NoFreeze: 0x00200000, // permanently disallowed freezing trustlines
-    GlobalFreeze: 0x00400000 // trustlines globally frozen
+    passwordSpent:         0x00010000, // password set fee is spent
+    requireDestinationTag: 0x00020000, // require a DestinationTag for payments
+    requireAuthorization : 0x00040000, // require a authorization to hold IOUs
+    disallowIncomingXRP:   0x00080000, // disallow sending XRP
+    disableMasterKey:      0x00100000, // force regular key
+    noFreeze:              0x00200000, // permanently disallow freezing trustlines
+    globalFreeze:          0x00400000, // trustlines globally frozen
+    defaultRipple:         0x00800000, // enable rippling by default
   };
 
   module.controller('AccountFlagsCtrl', ['$scope', 'rpId',
@@ -44,74 +45,54 @@ AccountFlagsTab.prototype.angular = function(module) {
   {
     if (!id.loginStatus) id.goId();
 
-    // Used in offline mode
-    if (!$scope.fee) {
-      $scope.fee = Options.max_tx_network_fee;
-    };
-
+    // TODO(lezhang): Add more flags.
     $scope.flags = {
-      DefaultRipple: {
+      defaultRipple: {
         edit: false,
         description: 'Enable if you plan to issue balances'
       },
-      RequireAuth: {
+      requireAuthorization: {
         edit: false,
         description: 'Enable if you require authorization for other users to extend a trust line to you'
       },
-      GlobalFreeze: {
+      globalFreeze: {
         edit: false,
         description: 'Enable if you want to freeze all assets issued by this account'
       },
-      DisallowXRP: {
+      disallowIncomingXRP: {
         edit: false,
         description: 'Disallow XRP'
       },
-      AccountTxnID: {
+      disableMasterKey: {
         edit: false,
-        description: 'Account Txn ID'
+        description: 'Disable master key'
+      },
+      enableTransactionIDTracking: {
+        edit: false,
+        description: 'Enable tracking the ID of the most recent transaction'
       }
-    };
-
-    $scope.saveTransaction = function(tx, hash, blob) {
-      var sequenceNumber = (Number(tx.tx_json.Sequence));
-      var sequenceLength = sequenceNumber.toString().length;
-      var txnName = $scope.userBlob.data.account_id + '-' + new Array(10 - sequenceLength + 1).join('0') + sequenceNumber + '.txt';
-      var txData = JSON.stringify({
-        tx_json: tx.tx_json,
-        hash: hash,
-        tx_blob: blob
-      });
-
-      if (!$scope.userBlob.data.defaultDirectory) {
-        $scope.fileInputClick(txnName, txData);
-      } else {
-        $scope.saveToDisk(txnName, txData);
-      }
-      $scope.signedTransaction = blob;
-      $scope.hash = hash;
-      $scope.txJSON = tx.tx_json;
-      $scope.offlineSettingsChange = true;
     };
 
     $scope.$watch('account', function() {
-      $scope.flags.DefaultRipple.enabled = !!($scope.account.Flags & RemoteFlags.DefaultRipple);
-      $scope.flags.RequireAuth.enabled = !!($scope.account.Flags & RemoteFlags.RequireAuth);
-      $scope.flags.GlobalFreeze.enabled = !!($scope.account.Flags & RemoteFlags.GlobalFreeze);
-      $scope.flags.DisallowXRP.enabled = !!($scope.account.Flags & RemoteFlags.DisallowXRP);
+      $scope.flags.defaultRipple.enabled = !!($scope.account.Flags & RemoteFlags.defaultRipple);
+      $scope.flags.requireAuthorization.enabled = !!($scope.account.Flags & RemoteFlags.requireAuthorization);
+      $scope.flags.globalFreeze.enabled = !!($scope.account.Flags & RemoteFlags.GlobalFreeze);
+      $scope.flags.disallowIncomingXRP.enabled = !!($scope.account.Flags & RemoteFlags.disallowIncomingXRP);
       // AccountTxnID doesn't have a corresponding ledger flag
-      $scope.flags.AccountTxnID.enabled = !!$scope.account.AccountTxnID;
+      $scope.flags.enableTransactionIDTracking.enabled = !!$scope.account.AccountTxnID;
 
-      $scope.flags.DefaultRipple.newEnabled = $scope.flags.DefaultRipple.enabled;
-      $scope.flags.RequireAuth.newEnabled = $scope.flags.RequireAuth.enabled;
-      $scope.flags.GlobalFreeze.newEnabled = $scope.flags.GlobalFreeze.enabled;
-      $scope.flags.DisallowXRP.newEnabled = $scope.flags.DisallowXRP.enabled;
-      $scope.flags.AccountTxnID.newEnabled = $scope.flags.AccountTxnID.enabled;
+      $scope.flags.defaultRipple.newEnabled = $scope.flags.defaultRipple.enabled;
+      $scope.flags.requireAuthorization.newEnabled = $scope.flags.requireAuthorization.enabled;
+      $scope.flags.globalFreeze.newEnabled = $scope.flags.globalFreeze.enabled;
+      $scope.flags.disallowIncomingXRP.newEnabled = $scope.flags.disallowIncomingXRP.enabled;
+      $scope.flags.disableMasterKey.newEnabled = $scope.flags.disableMasterKey.enabled;
+      $scope.flags.enableTransactionIDTracking.newEnabled = $scope.flags.enableTransactionIDTracking.enabled;
     }, true);
 
   }]);
 
   module.controller('FlagCtrl', ['$scope', '$timeout', 'rpId', 'rpNetwork', 'rpKeychain',
-    function($scope, $timeout, id, net, keychain) {
+                                 function($scope, $timeout, id, $network, keychain) {
       var flag = $scope.flag;
 
       $scope.save = function() {
@@ -119,34 +100,24 @@ AccountFlagsTab.prototype.angular = function(module) {
         if ($scope.opts.enabled !== $scope.opts.newEnabled) {
           $scope.opts.saving = true;
 
-          var tx = net.remote.transaction();
-          var action;
-
-          if ($scope.opts.newEnabled) {
-            action = 'add';
-            tx.accountSet(id.account, setClearFlags[flag]);
-          } else {
-            action = 'remove';
-            tx.accountSet(id.account, undefined, setClearFlags[flag]);
-          }
-
-          tx.on('success', function() {
+          var onTransactionSuccess = function(res) {
             $scope.$apply(function() {
               $scope.opts.saving = false;
               $scope.opts.edit = false;
               $scope.load_notification(flag + 'Updated');
 
               // Hack
-              if (flag === 'AccountTxnID' && action === 'remove') {
+              if (flag === 'enableTransactionIDTracking' &&
+                  !$scope.opts.newEnabled) {
                 $timeout(function() {
                   $scope.opts.enabled = false;
                   $scope.opts.newEnabled = false;
                 }, 200);
               }
             });
-          });
+          };
 
-          tx.on('error', function(res) {
+          var onTransactionError = function(res) {
             console.warn(res);
             $scope.$apply(function() {
               $scope.opts.saving = false;
@@ -154,7 +125,7 @@ AccountFlagsTab.prototype.angular = function(module) {
               $scope.opts.engine_result_message = res.engine_result_message;
               $scope.load_notification(flag + 'Failed');
             });
-          });
+          };
 
           keychain.requestSecret(id.account, id.username, function(err, secret) {
             if (err) {
@@ -162,45 +133,14 @@ AccountFlagsTab.prototype.angular = function(module) {
               return;
             }
 
-            tx.secret(secret);
-            tx.submit();
+            $network.api.prepareSettings(id.account, {
+              [flag]: $scope.opts.newEnabled,
+            }, Tx.Instructions).then(prepared => {
+              $network.submitTx(prepared, secret, onTransactionSuccess,
+                  onTransactionError);
+            }).catch(console.error);
           });
         }
-      };
-
-      $scope.saveOffline = function(action) {
-        if (action !== 'add' && action !== 'remove') {
-          console.warn('Wrong save action');
-          return;
-        }
-
-        var tx = net.remote.transaction();
-
-        if (action === 'add') {
-          tx.accountSet(id.account, setClearFlags[flag]);
-        } else {
-          tx.accountSet(id.account, undefined, setClearFlags[flag]);
-        }
-
-        tx.tx_json.Sequence = Number($scope.sequence);
-        $scope.incrementSequence();
-
-        // Fee must be converted to drops
-        tx.tx_json.Fee = ripple.Amount.from_json(Options.max_tx_network_fee).to_human() * 1000000;
-        keychain.requestSecret(id.account, id.username, function(err, secret) {
-          if (err) {
-            console.warn(err);
-            return;
-          }
-          tx.secret(secret);
-          tx.complete();
-
-          $scope.signedTransaction = tx.sign().serialize().to_hex();
-          $scope.txJSON = JSON.stringify(tx.tx_json);
-          $scope.hash = tx.hash('HASH_TX_ID', false, undefined);
-          $scope.opts.edit = false;
-          $scope.saveTransaction(tx, $scope.hash, $scope.signedTransaction);
-        });
       };
 
       $scope.cancel = function() {

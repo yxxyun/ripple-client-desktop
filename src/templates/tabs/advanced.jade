@@ -30,14 +30,14 @@ section.col-sm-12.content(ng-controller="AdvancedCtrl")
               l10n-data-content="The same network fee is used for each transaction in both online and offline mode.")
           .row.row-padding-small.advanced-form-row(ng-hide="editMaxNetworkFee")
             .col-sm-10
-              .description {{max_tx_network_fee_human}} {{xrp.code}}
+              .description {{maxFeeXRP}} {{xrp.code}}
             .col-sm-2
               a.btn.btn-block.btn-cancel(href="", ng-click="editMaxNetworkFee = true", l10n) edit
           .row.row-padding-small.field-edit-row(ng-show="editMaxNetworkFee")
             .col-sm-6.col-md-6.input-group#maxnetworkfeeForm
               input.form-control.maxNetworkFee#maxNetworkFee(
               name='maxNetworkFee', type='text'
-              ng-model='max_tx_network_fee_human'
+              ng-model='maxFeeXRP'
               required
               rp-amount
               rp-amount-positive
@@ -115,7 +115,7 @@ section.col-sm-12.content(ng-controller="AdvancedCtrl")
                 a.btn.btn-cancel.btn-block(href="", ng-click="editProxy = true", l10n) edit
 
         h4#serverSettings(ng-show="onlineMode", l10n) Server settings
-        form.server-row-form(ng-show="onlineMode", ng-controller="ServerRowCtrl", ng-repeat="(index, server) in options.server.servers", ng-submit="save()")
+        form.server-row-form(ng-show="onlineMode", ng-controller="ServerRowCtrl", ng-submit="save()")
           ng-form(name="serverForm")
             .row.row-padding-small
               .col-sm-3
@@ -135,14 +135,12 @@ section.col-sm-12.content(ng-controller="AdvancedCtrl")
               .col-sm-2.editable
                 .helperInput
                   label
-                    input(type="checkbox", name="secure", ng-model='server.secure')
+                    input(type="checkbox", name="secure", ng-model='server.secure', ng-change='server.changePort(server.secure)')
                     span(l10n) Secure
               .col-sm-2
                 button.btn.btn-block.btn-success.btn-xs.submit#save(type='submit'
                 ng-disabled='serverForm.$invalid', l10n) Save
               //.col-sm-2(ng-show="hasRemove()")
-              .col-sm-2
-                button.btn.btn-block.btn-danger.btn-xs.submit#delete(type="button", ng-click="remove()", l10n) Delete
               .col-sm-1.text-center#cancel
                 a.btn.btn-cancel.btn-block(href="", ng-click="cancel()", ng-hide="noCancel()", l10n) cancel
             .row.row-padding-small.advanced-form-row(ng-hide="editing")
@@ -155,7 +153,3 @@ section.col-sm-12.content(ng-controller="AdvancedCtrl")
                 .description(ng-hide="server.secure", l10n) Not Secure
               .col-sm-2
                 a.btn.btn-cancel.btn-block(href="", ng-click="editing = true", l10n) edit
-
-        .row
-          .col-sm-6.col-md-3
-            button.btn.btn-block.btn-primary#newServer(ng-show="onlineMode", type="button", ng-click="addServer()", l10n) Add new server

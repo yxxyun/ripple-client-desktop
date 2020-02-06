@@ -169,11 +169,6 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
   {
     var self = this;
 
-    // If account master key is not present, generate one
-    var masterkey = !!opts.masterkey
-      ? opts.masterkey
-      : Base58Utils.encode_base_check(33, sjcl.codec.bytes.fromBits(sjcl.random.randomWords(4)));
-
     // Callback is optional
     if ("function" !== typeof callback) callback = $.noop;
 
@@ -183,7 +178,17 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
     // Blob data
     var username = Id.normalizeUsernameForDisplay(opts.username);
     var password = Id.normalizePassword(opts.password);
-    var account  = (new RippleAddress(masterkey)).getAddress();
+
+    if (!!opts.regularkey) {
+      var regularkey = opts.regularkey;
+      var account = opts.account;
+    } else {
+      // If account master key is not present, generate one
+      var masterkey = !!opts.masterkey
+        ? opts.masterkey
+        : Base58Utils.encode_base_check(33, sjcl.codec.bytes.fromBits(sjcl.random.randomWords(4)));
+      var account = (new RippleAddress(masterkey)).getAddress();
+    }
 
     $authflow.register({
       'username': username,
@@ -191,6 +196,7 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
       'account': account,
       'email': opts.email,
       'masterkey': masterkey,
+      'regularkey': regularkey,
       'oldUserBlob': opts.oldUserBlob,
       'walletfile': opts.walletfile
     },
@@ -208,7 +214,8 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
       self.loginStatus = true;
       $scope.$broadcast('$blobUpdate');
 
-      callback(null, masterkey);
+      var secretkey = !!regularkey ? regularkey : masterkey;
+      callback(null, secretkey);
     });
   };
 
@@ -296,38 +303,9 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
 
   Id.prototype.verifyToken = function (options, callback) {
     store.set('remember_me', options.remember_me);
-    $authflow.verifyToken(options, callback);    
-  }; 
-  
-  Id.prototype.changePassword = function (options, callback) {
-    var self = this;
-    
-    $authflow.changePassword(options, function(err, resp) {  
-      
-      if (err) {
-        return callback(err);
-      }
-      
-      //NOTE: the section below changed so that you can recover with 2FA enabled
-      //We should be checking attestation statuses here also.
-      
-      //perform login, so that the email verification is checked
-      //and the username, blob, and keys get stored.
-      //self.login(options, callback); 
-      
-      var keys = {id:options.blob.id,crypt:options.blob.key};
-      
-      $scope.userBlob = options.blob;
-      self.setUsername(options.username);
-      self.setAccount(options.blob.data.account_id);
-      self.setLoginKeys(keys);
-      store.set('device_id', options.blob.device_id);
-      self.loginStatus = true;
-      $scope.$broadcast('$blobUpdate');
-      callback();          
-    });
+    $authflow.verifyToken(options, callback);
   };
-  
+
   Id.prototype.logout = function ()
   {
     sessionStorage.auth = '';
@@ -335,9 +313,9 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
 
     //remove deviceID if remember me is not set
     if (!store.get('remember_me')) {
-      store.remove('device_id');  
+      store.remove('device_id');
     }
-    
+
     // TODO make it better
     this.account = '';
     this.keys = {};
@@ -367,7 +345,9 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
 
     // Secret is stored in plaintext in memory
     if ($scope.userBlob.password === password) {
-      callback(null, $scope.userBlob.data.masterkey);
+      var secretkey = !!$scope.userBlob.data.regularKey ?
+        $scope.userBlob.data.regularKey : $scope.userBlob.data.masterkey;
+      callback(null, secretkey);
     } else {
       callback(new Error('Invalid password'));
     }
@@ -385,7 +365,7 @@ module.factory('rpId', ['$rootScope', '$location', '$route', '$routeParams', '$t
       sessionStorage.authReadOnly = address;
     }
   };
-  
+
   /**
    * Go to an identity page.
    *

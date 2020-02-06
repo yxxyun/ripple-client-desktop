@@ -44,6 +44,7 @@ RegisterTab.prototype.angular = function (module) {
       //$scope.mode = 'register_empty_wallet1';
       $scope.showMasterKeyInput = false;
       $scope.submitLoading = false;
+      $scope.isRegularKey = false;
 
       if ($scope.registerForm) $scope.registerForm.$setPristine(true);
     };
@@ -59,7 +60,11 @@ RegisterTab.prototype.angular = function (module) {
     };
 
     $scope.submitSecretKeyForm = function(){
-      $scope.masterkey = $scope.secretKey;
+      if ($scope.isRegularKey) {
+        $scope.regularkey = $scope.secretKey;
+      } else {
+        $scope.masterkey = $scope.secretKey;
+      }
       $scope.fileInputClick();
     };
 
@@ -68,7 +73,9 @@ RegisterTab.prototype.angular = function (module) {
       $id.register({
         'username': 'local',
         'password': $scope.password1,
+        'account': $scope.accountID,
         'masterkey': $scope.masterkey,
+        'regularkey': $scope.regularkey,
         'walletfile': $scope.walletfile
       },
       function(err, key){

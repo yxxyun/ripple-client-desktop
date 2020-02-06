@@ -18,9 +18,6 @@ section.col-xs-12.content(ng-controller="AccountFlagsCtrl")
         | &#32;before you can see this page.
     .col-sm-9.list(ng-show='((connected && account.Balance) || !onlineMode)')
 
-      //- Offline Flag Change
-      div(ng-show='offlineSettingsChange')
-        signed-transaction(data="{{signedTransaction}}", txJSON="{{txJSON}}", hash="{{hash}}")
       section.content#gateways
         h4(l10n) Account Flags
         div(ng-repeat="(flag, opts) in flags", ng-controller="FlagCtrl")
@@ -60,14 +57,5 @@ section.col-xs-12.content(ng-controller="AccountFlagsCtrl")
               .col-sm-3
                 .description(l10n) {{flag}}
               .col-sm-6
-              .col-sm-3
-                a.btn.btn-cancel.btn-block(href="", ng-click="opts.edit = true", l10n) edit
-            .row.accountflags-form-row(ng-show="opts.edit")
-              .col-sm-3
-                .description(l10n) {{flag}}
-              .col-sm-3
-                a.btn.btn-success.btn-block(href="", ng-click='saveOffline("add")', ng-disabled='!$root.sequence || !$root.fee', l10n) Add Flag
-              .col-sm-3
-                a.btn.btn-danger.btn-block(href="", ng-click='saveOffline("remove")', ng-disabled='!$root.sequence || !$root.fee', l10n) Remove Flag
-              .col-sm-3
-                a.btn.btn-cancel.btn-block(href="", ng-click='cancel()', l10n) cancel
+                .description(ng-show="opts.enabled", l10n) Enabled
+                .description(ng-hide="opts.enabled", l10n) Disabled

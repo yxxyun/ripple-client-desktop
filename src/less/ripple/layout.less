@@ -310,7 +310,7 @@ footer {
       padding-left:  (@grid-gutter-width / 6);
       padding-right: (@grid-gutter-width / 6);
     }
-    
+
   }
 }
 
@@ -483,41 +483,26 @@ footer {
 .animation-keyframes (color-change2, #fbdfa0, #feca5d, mediumLoad, ease-in-out, 2s, infinite, alternate);
 .animation-keyframes (color-change3, #cb514f, #e38c8f, highLoad, ease-in-out, 2s, infinite, alternate);
 
-.from (color-change, @color) {
-  background: @color;
-}
-.to (color-change, @color) {
-  background: @color;
-}
-
-.keyframes (@name, @from, @to, @vendor:"", @bind:"") {
-  @keyf: ~"@{bind}@@{vendor}keyframes @{name} { `'\n'`from ";
-  @{keyf} {
-      .from(color-change,@from);
-        }
-      to {
-        .to(color-change,@to);
-      }
+.color-change(@from, @to) {
+  from { background: @from; }
+  to { background: @to; }
 }
 
 // keyframes without any vendor prefix
 .animation-keyframes-novendor (@name, @from, @to, @anim-selector) {
-  .keyframes (@name, @from, @to);
-  @anim: ~"} `'\n'`.@{anim-selector}";
-  @{anim} {
+  @keyframes @name { .color-change(@from, @to) }
+  .@{anim-selector} {
     animation-name:@name;
   }
 }
 
 // keyframes with vendor prefix
 .animation-keyframes (@name, @from, @to, @anim-selector, @func, @duration, @iteration-count, @direction) {
-  @bind: "} `'\n'`";
-  .keyframes (@name, @from, @to, "-moz-");
-  .keyframes (@name, @from, @to, "-webkit-", @bind);
-  .keyframes (@name, @from, @to, "-o-", @bind);
-  .keyframes (@name, @from, @to, "", @bind);
-  @anim: ~"} `'\n'`.@{anim-selector}";
-  @{anim} {
+  @-webkit-keyframes @name { .color-change(@from, @to) }
+  @-moz-keyframes @name { .color-change(@from, @to) }
+  @-o-keyframes @name { .color-change(@from, @to) }
+  @keyframes @name { .color-change(@from, @to) }
+  .@{anim-selector} {
     -moz-animation: @name @func @duration @iteration-count @direction;
     -webkit-animation: @name @func @duration @iteration-count @direction;
     -o-animation: @name @func @duration @iteration-count @direction;

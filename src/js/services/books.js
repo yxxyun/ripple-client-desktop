@@ -5,16 +5,15 @@
  */
 
 var module = angular.module('books', ['network']);
-var Amount = ripple.Amount;
 
 
 module.factory('rpBooks', ['rpNetwork', '$q', '$rootScope', '$filter', 'rpId',
-function(net, $q, $scope, $filter, $id) {
+                           function($network, $q, $scope, $filter, $id) {
 
   var rowCount;
 
   function loadBook(gets, pays) {
-    return net.remote.book({
+    return new OrderBook.createOrderBook($network.apiOrderbook, {
       currency_gets: gets.currency,
       issuer_gets: gets.issuer,
       currency_pays: pays.currency,
@@ -44,39 +43,41 @@ function(net, $q, $scope, $filter, $id) {
         return false;
       }
 
-      if (d.TakerGets.value) {
-        d.TakerGets.value = d.taker_gets_funded;
+      d.TakerGetsFunded = d.TakerGets;
+      d.TakerPaysFunded = d.TakerPays;
+      d.Accounts = d.Account;
+
+      if (d.TakerGetsFunded.value) {
+        d.TakerGetsFunded.value = d.taker_gets_funded;
       } else {
-        d.TakerGets = parseInt(Number(d.taker_gets_funded), 10);
+        d.TakerGetsFunded = parseInt(Number(d.taker_gets_funded), 10);
       }
 
-      if (d.TakerPays.value) {
-        d.TakerPays.value = d.taker_pays_funded;
+      if (d.TakerPaysFunded.value) {
+        d.TakerPaysFunded.value = d.taker_pays_funded;
       } else {
-        d.TakerPays = parseInt(Number(d.taker_pays_funded), 10);
+        d.TakerPaysFunded = parseInt(Number(d.taker_pays_funded), 10);
       }
 
-      d.TakerGets = Amount.from_json(d.TakerGets);
-      d.TakerPays = Amount.from_json(d.TakerPays);
+      d.TakerGetsFunded = deprecated.Amount.from_json(d.TakerGetsFunded);
+      d.TakerPaysFunded = deprecated.Amount.from_json(d.TakerPaysFunded);
 
       // You never know
-      if (!d.TakerGets.is_valid() || !d.TakerPays.is_valid()) {
+      if (!d.TakerGetsFunded.is_valid() || !d.TakerPaysFunded.is_valid()) {
         return false;
       }
 
       if (action === 'asks') {
-        d.price = Amount.
-          from_quality(d.BookDirectory, d.TakerPays.currency(),
-          d.TakerPays.issuer(), {
-            base_currency: d.TakerGets.currency(),
+        d.price = deprecated.Amount.from_quality(d.BookDirectory, d.TakerPaysFunded.currency(),
+          d.TakerPaysFunded.issuer(), {
+            base_currency: d.TakerGetsFunded.currency(),
             reference_date: new Date()
           });
       } else {
-        d.price = Amount.
-          from_quality(d.BookDirectory, d.TakerGets.currency(),
-          d.TakerGets.issuer(), {
+        d.price = deprecated.Amount.from_quality(d.BookDirectory, d.TakerGetsFunded.currency(),
+          d.TakerGetsFunded.issuer(), {
             inverse: true,
-            base_currency: d.TakerPays.currency(),
+            base_currency: d.TakerPaysFunded.currency(),
             reference_date: new Date()
           });
       }
@@ -91,32 +92,24 @@ function(net, $q, $scope, $filter, $id) {
         d.my = true;
       }
 
-      if (lastprice === price && !d.my) {
-        if (combine) {
-          newData[current].TakerPays = Amount.from_json(newData[current].TakerPays).add(d.TakerPays);
-          newData[current].TakerGets = Amount.from_json(newData[current].TakerGets).add(d.TakerGets);
-        }
+      if (lastprice === price && !d.my && !newData[current].my && combine) {
+        newData[current].TakerPaysFunded = deprecated.Amount.from_json(newData[current].TakerPaysFunded).add(d.TakerPaysFunded);
+        newData[current].TakerGetsFunded = deprecated.Amount.from_json(newData[current].TakerGetsFunded).add(d.TakerGetsFunded);
+        newData[current].Accounts = newData[current].Accounts + "\n" + d.Account
         d = false;
       } else {
         current = i;
-      }
-
-      if (!d.my) {
         lastprice = price;
-      }
-
-      if (d) {
         rowCount++;
-      }
-
-      if (rowCount > max_rows) {
-        return false;
+        if (rowCount > max_rows) {
+          return false;
+        }
       }
 
       return d;
     })));
 
-    var key = action === 'asks' ? 'TakerGets' : 'TakerPays';
+    var key = action === 'asks' ? 'TakerGetsFunded' : 'TakerPaysFunded';
     var sum;
     _.forEach(newData, function (order) {
       if (sum) {
@@ -146,9 +139,21 @@ function(net, $q, $scope, $filter, $id) {
         });
       }
 
+      function normalize(value) {
+        if (value instanceof XRPValue) {
+          // The XRPValue returns from orderbook trade event is in drops.
+          // Turning it into IOUValue is a necessary hack because if XRPValue is
+          // divisor, it will become drops again during division as defined in
+          // ripple-lib-value.
+          return new IOUValue($network.apiOrderbook.dropsToXrp(value._value));
+        }
+        return value
+      }
+
       function handleAskTrade(gets, pays) {
         $scope.$apply(function () {
-          model.last_price = gets.ratio_human(pays);
+          model.last_price = new deprecated.Amount(
+            normalize(gets).divide(normalize(pays)));
           model.updated = true;
         });
       }
@@ -164,7 +169,8 @@ function(net, $q, $scope, $filter, $id) {
 
       function handleBidTrade(gets, pays) {
         $scope.$apply(function () {
-          model.last_price = pays.ratio_human(gets);
+          model.last_price = new deprecated.Amount(
+            normalize(pays).divide(normalize(gets)));
           model.updated = true;
         });
       }

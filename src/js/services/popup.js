@@ -16,7 +16,8 @@ module.factory('rpPopup', ['$compile',
   {
     if (!popupService.popupElement && create)
     {
-      popupService.popupElement = $( '<div class="modal fade"></div>' );
+      // TODO(lezhang): Make class 'fade' work.
+      popupService.popupElement = $( '<div class="modal"></div>' );
       popupService.popupElement.appendTo( 'BODY' );
     }
 

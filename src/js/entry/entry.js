@@ -26,11 +26,10 @@ require('../services/keychain');
 require('../services/network');
 //require('../services/api');
 require('../services/books');
-require('../services/transactions');
-require('../services/ledger');
 require('../services/popup');
 require('../services/nwhelpers');
 require('../services/filedialog');
+require('../services/pairsqueryutils');
 
 // Angular module dependencies
 var appDependencies = [
@@ -43,6 +42,7 @@ var appDependencies = [
   'id',
   'filedialog',
   'nwhelpers',
+  'pairsqueryutils',
   // Directives
   'charts',
   'effects',
@@ -77,14 +77,12 @@ var tabdefs = [
   require('../tabs/accountflags'),
   require('../tabs/settingstrade'),
   require('../tabs/coldwallet'),
-  require('../tabs/submit'),
-  require('../tabs/coldwalletsettings'),
   require('../tabs/tou')
 ];
 
 // Language
 window.lang = (function(){
-  var languages = _.pluck(require('../../../l10n/languages.json').active, 'code');
+  /*var languages = _.pluck(require('../../../l10n/languages.json').active, 'code');
   var resolveLanguage = function(lang) {
     if (!lang) return null;
     if (languages.indexOf(lang) != -1) return lang;
@@ -96,7 +94,9 @@ window.lang = (function(){
   };
   return resolveLanguage(store.get('ripple_language')) ||
     resolveLanguage(window.navigator.userLanguage || window.navigator.language) ||
-    'en';
+    'en';*/
+
+  return 'en'
 })();
 
 // Prepare tab modules
@@ -125,7 +125,13 @@ rippleclient.types = types;
 rippleclient.tabs = {};
 _.forEach(tabs, function(tab) { rippleclient.tabs[tab.tabName] = tab; });
 
-app.config(['$routeProvider', function ($routeProvider) {
+app.config(['$routeProvider', '$locationProvider',
+  function ($routeProvider, $locationProvider) {
+  // Since AngularJS 1.6, the default hash-prefix used for $location hash-bang
+  // URLs has changed from the empty string ('') to the bang ('!'). To make old
+  // url (e.g. 'href="#/history') work, set hash prefix to empty string.
+  $locationProvider.hashPrefix('');
+
   // Set up routing for tabs
   _.forEach(tabs, function (tab) {
     var config = {
@@ -239,8 +245,11 @@ if ("function" === typeof angular.resumeBootstrap) {
  * NW.js stuff
  */
 
-var gui = require('nw.gui');
+var gui = window.require('nw.gui');
 var win = gui.Window.get();
+if (process.env.DEBUG === 'true') {
+  win.showDevTools();
+}
 
 // Edit menu
 if (process.platform === "darwin") {

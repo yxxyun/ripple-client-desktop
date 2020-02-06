@@ -4,15 +4,16 @@
  * The navbar controller manages the bar at the top of the screen.
  */
 
-var Amount = ripple.Amount,
-    rewriter = require('../util/jsonrewriter');
+var rewriter = require('../util/jsonrewriter');
 
 var module = angular.module('navbar', []);
+
+// TODO(lezhang): l10n-rp-popover-content in template doesn't show up.
 
 module.controller('NavbarCtrl', ['$scope', '$element', '$compile', 'rpId',
                                  'rpNetwork', '$location',
                                  function ($scope, el, $compile, $id,
-                                           network, $location)
+                                           $network, $location)
 {
   var queue = [];
   var tickInterval = 4000;
@@ -24,25 +25,31 @@ module.controller('NavbarCtrl', ['$scope', '$element', '$compile', 'rpId',
   };
 
   function serverStatusUpdate() {
-    $scope.fee = network.remote.createTransaction()._computeFee();
-
     if (!$scope.connected && $scope.userCredentials.username) {
       $scope.serverStatus = 'disconnected';
     }
-    else if ($scope.connected && $scope.fee) {
-      if ((parseFloat(ripple.Amount.from_json($scope.fee).to_human()) > parseFloat(Options.low_load_threshold)) && (parseFloat($scope.fee) < parseFloat(Options.max_tx_network_fee))) {
-        $scope.serverLoad = 'mediumLoad';
-        $scope.serverStatus = 'mediumLoad';
-      } else if (parseFloat($scope.fee) >= parseFloat(Options.max_tx_network_fee)) {
-        $scope.serverLoad = 'highLoad';
-        $scope.serverStatus = 'highLoad';
-      } else {
-        $scope.serverLoad = '';
-        $scope.serverStatus = 'lowLoad';
-      }
-    }
-    else {
-      $scope.serverStatus = 'connected';
+    else if ($scope.connected) {
+      $network.api.getFee().then(fee => {
+        $scope.$apply(function() {
+          $scope.fee = Number(fee);
+          if ($scope.fee > Options.low_load_threshold &&
+              $scope.fee <= Number(Options.connection.maxFeeXRP)) {
+            $scope.serverLoad = 'mediumLoad';
+            $scope.serverStatus = 'mediumLoad';
+          } else if ($scope.fee > Number(Options.connection.maxFeeXRP)) {
+            $scope.serverLoad = 'highLoad';
+            $scope.serverStatus = 'highLoad';
+          } else {
+            $scope.serverLoad = '';
+            $scope.serverStatus = 'lowLoad';
+          }
+        });
+      }).catch(function(error) {
+        console.log('Error getFee: ', error);
+        $scope.$apply(function() {
+          $scope.serverStatus = 'connected';
+        });
+      });
     }
   }
 

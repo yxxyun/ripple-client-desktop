@@ -108,6 +108,7 @@ module.factory('rpBlob', ['$rootScope', function ($scope)
     var blob = new BlobObj(opts.password, opts.walletfile);
     blob.data = {
       masterkey: opts.masterkey,
+      regularKey: opts.regularkey,
       account_id: opts.account,
       contacts: [],
       created: (new Date()).toJSON()

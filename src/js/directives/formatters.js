@@ -6,9 +6,7 @@
  * better to use a directive.
  */
 
-var webutil = require('../util/web'),
-    Amount = ripple.Amount,
-    Currency = ripple.Currency;
+var webutil = require('../util/web');
 
 var module = angular.module('formatters', []);
 
@@ -30,6 +28,7 @@ module.directive('rpPrettyIssuer', function () {
 
           scope.alias = null;
           scope.name = null;
+
           if (scope.contacts) {
             scope.name = webutil.isContact(scope.contacts, scope.issuer);
           }
@@ -135,7 +134,7 @@ module.directive('rpPrettyIdentity', ['$timeout', function ($timeout) {
             cancelHidePopoverTimeout = null;
           } else if (!cancelShowPopoverTimeout) {
             cancelShowPopoverTimeout = $timeout( function() {
-              element.popover('show'); 
+              element.popover('show');
               shown = true;
             }, popupDelay, false );
             cancelShowPopoverTimeout.finally(function() { cancelShowPopoverTimeout = null; });
@@ -159,7 +158,7 @@ module.directive('rpPrettyIdentity', ['$timeout', function ($timeout) {
         }
         // XXX Set title to identity
 
-        element.popover('destroy');
+        element.popover('dispose');
         var content = 'Ripple address ' + scope.identity;
         var options = {  content: content,
           trigger: 'manual', placement: 'top',
@@ -167,7 +166,8 @@ module.directive('rpPrettyIdentity', ['$timeout', function ($timeout) {
           template: '<div class="popover"><div class="arrow"></div><div class="popover-inner"><div class="popover-content" ></div></div></div>'
         };
         var popover = element.popover(options);
-        tip = element.data('bs.popover').tip();
+        // TODO(lezhang): figure out why this "fix" works.
+        tip = $(element.data('bs.popover').tip);
         element.bind('mouseenter', onElemEnter);
         element.bind('mouseleave', onElemLeave);
         tip.bind('mouseenter', onPopoverEnter);
@@ -215,10 +215,10 @@ module.directive('rpCurrency', function () {
       return function (scope, element, attr) {
         scope.$watch(attr.rpCurrency, function (input) {
           var currency;
-          if (input instanceof Currency) {
+          if (input instanceof deprecated.Currency) {
             currency = input;
           } else {
-            var amount = Amount.from_json(input);
+            var amount = deprecated.Amount.from_json(input);
             currency = amount.currency();
           }
 

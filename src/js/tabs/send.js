@@ -1,10 +1,7 @@
 var util = require('util'),
     webutil = require('../util/web'),
     Tab = require('../client/tab').Tab,
-    Amount = ripple.Amount,
-    Currency = ripple.Currency,
-    Base = ripple.Base,
-    RippleError = ripple.RippleError,
+    Tx = require('../util/tx'),
     fs = require('fs');    
 
 var SendTab = function ()
@@ -37,7 +34,7 @@ SendTab.prototype.angular = function (module)
 
     // XRP currency object.
     // {name: "XRP - Ripples", order: 146, value: "XRP"}
-    var xrpCurrency = Currency.from_json("XRP");
+    var xrpCurrency = deprecated.Currency.from_json("XRP");
 
     $scope.xrp = {
       name: xrpCurrency.to_human({full_name:$scope.currencies_all_keyed["XRP"].name}),
@@ -73,7 +70,7 @@ SendTab.prototype.angular = function (module)
     }, true);
 
     $scope.$watch('send.currency', function () {
-      var currency = ripple.Currency.from_json($scope.send.currency);
+      var currency = deprecated.Currency.from_json($scope.send.currency);
       if ($scope.send.currency !== '' && currency.is_valid()) {
         $scope.send.currency_code = currency.to_human().toUpperCase();
       } else {
@@ -144,14 +141,12 @@ SendTab.prototype.angular = function (module)
       send.self = recipient === $scope.address;
 
       // Check destination tag visibility
-      if ($scope.onlineMode) {
-        $scope.check_dt_visibility();
+      $scope.check_dt_visibility();
 
-        if (destUpdateTimeout) $timeout.cancel(destUpdateTimeout);
-        destUpdateTimeout = $timeout($scope.update_destination_remote, 500);
-      } else {
-        $scope.check_destination();
+      if (destUpdateTimeout) {
+        $timeout.cancel(destUpdateTimeout);
       }
+      destUpdateTimeout = $timeout($scope.update_destination_remote, 500);
     };
 
     $scope.update_destination_remote = function () {
@@ -159,8 +154,9 @@ SendTab.prototype.angular = function (module)
       var recipient = send.recipient_address;
 
       // Reset federation address validity status
-      if ($scope.sendForm && $scope.sendForm.send_destination)
+      if ($scope.sendForm && $scope.sendForm.send_destination) {
         $scope.sendForm.send_destination.$setValidity("federation", true);
+      }
 
       $scope.check_destination();
     };
@@ -170,49 +166,29 @@ SendTab.prototype.angular = function (module)
       var send = $scope.send;
       var recipient = send.recipient_actual || send.recipient_address;
 
-      if (!RippleAddressCodec.isValidAddress(recipient)) return;
-
-      if (!$scope.onlineMode) {
-        $scope.send.currency = '';
-        $scope.send.path_status  = "none";
-        $scope.send.currency_choices = ['XRP'];
-        $scope.send.recipient_resolved = true;
-        return;
-      }
-
-      var account = $network.remote.account(recipient);
+      if (!RippleAddressCodec.isValidClassicAddress(recipient)) return;
 
       send.path_status = 'checking';
       send.recipient_info = null;
-      account.entry(function (e, data) {
-        $scope.$apply(function () {
-          // Check if this request is still current, exit if not
-          var now_recipient = send.recipient_actual || send.recipient_address;
-          if (recipient !== now_recipient) return;
 
-          // If we get this far, we have a Ripple address resolved
-          send.recipient_resolved = true;
+      $network.api.getAccountInfo(recipient).then(info => {
+        $network.api.getSettings(recipient).then(settings => {
+          $scope.$apply(function () {
+            // Check if this request is still current, exit if not
+            var now_recipient = send.recipient_actual || send.recipient_address;
+            if (recipient !== now_recipient) return;
 
-          if (e) {
-            if (e.remote.error === "actNotFound") {
-              send.recipient_info = {
-                'loaded': true,
-                'exists': false,
-                'Balance': "0"
-              };
-              $scope.update_currency_constraints();
-            } else {
-              // XXX Actual error
-            }
-          } else {
+            // If we get this far, we have a Ripple address resolved
+            send.recipient_resolved = true;
+
             send.recipient_info = {
               'loaded': true,
               'exists': true,
-              'Balance': data.account_data.Balance,
+              'Balance': info.xrpBalance,
 
               // Flags
-              'disallow_xrp': data.account_data.Flags & ripple.Remote.flags.account_root.DisallowXRP,
-              'dest_tag_required': data.account_data.Flags & ripple.Remote.flags.account_root.RequireDestTag
+              'disallow_xrp': settings.disallowIncomingXRP,
+              'dest_tag_required': settings.requireDestinationTag,
             };
 
             // Check destination tag visibility
@@ -221,13 +197,26 @@ SendTab.prototype.angular = function (module)
             if (!$scope.account || !$scope.account.reserve_base) return;
 
             var reserve_base = $scope.account.reserve_base;
-            send.xrp_deficiency = reserve_base.subtract(data.account_data.Balance);
+            send.xrp_deficiency = reserve_base - Number(info.xrpBalance);
 
             send.recipient_lines = false;
             $scope.update_currency_constraints();
-          }
+          });
         });
-      });
+      }).catch(error => {
+        $scope.$apply(function () {
+          if (error.data.error === "actNotFound") {
+            send.recipient_info = {
+              'loaded': true,
+              'exists': false,
+              'Balance': "0"
+            };
+            $scope.update_currency_constraints();
+          } else {
+            console.error(error);
+          }
+        })
+      })
     };
 
     /**
@@ -254,13 +243,15 @@ SendTab.prototype.angular = function (module)
         // Check allowed currencies for this address
         var requestedRecipientAddress = send.recipient_address;
         send.currency_choices_constraints.accountLines = 'pending';
-        $network.remote.requestAccountCurrencies({account: requestedRecipientAddress})
-          .on('success', function (data) {
+        $network.api.request('account_currencies', {
+          account: requestedRecipientAddress,
+          ledger_index: 'validated'
+        }).then(response => {
             $scope.$apply(function () {
-              if (data.receive_currencies &&
+              if (response.receive_currencies &&
                   // We need to make sure the destination account hasn't changed
                   send.recipient_address === requestedRecipientAddress) {
-                send.currency_choices_constraints.accountLines = data.receive_currencies;
+                send.currency_choices_constraints.accountLines = response.receive_currencies;
 
                 // add XRP if it's allowed
                 if (!$scope.send.recipient_info.disallow_xrp) {
@@ -270,9 +261,9 @@ SendTab.prototype.angular = function (module)
                 $scope.update_currency_choices();
               }
             });
-          })
-          .on('error', function () {})
-          .request();
+        }).catch(function(error) {
+          console.log("Error request 'account_currencies': ", error);
+        })
       } else {
         // If the account doesn't exist, we can only send XRP
         send.currency_choices_constraints.accountLines = ["XRP"];
@@ -306,7 +297,7 @@ SendTab.prototype.angular = function (module)
         // create the display version of the currencies
         currencies = _.map(currencies, function (currency) {
          // create a currency object for each of the currency codes
-          var currencyObj = ripple.Currency.from_json(currency);
+          var currencyObj = deprecated.Currency.from_json(currency);
           if ($scope.currencies_all_keyed[currencyObj.get_iso()]) {
             return currencyObj.to_human({full_name:$scope.currencies_all_keyed[currencyObj.get_iso()].name});
           } else {
@@ -347,7 +338,7 @@ SendTab.prototype.angular = function (module)
       $scope.reset_currency_deps();
 
       // We should have a valid recipient
-      if (!RippleAddressCodec.isValidAddress(recipient) && !send.quote_url) {
+      if (!RippleAddressCodec.isValidClassicAddress(recipient) && !send.quote_url) {
         return;
       }
 
@@ -369,8 +360,8 @@ SendTab.prototype.angular = function (module)
     };
 
     $scope.update_amount = function () {
+      $network.api.request('path_find', {subcommand: 'close'}).catch(error => {});
       var send = $scope.send;
-      $network.remote.closeCurrentPathFind();
       var recipient = send.recipient_actual || send.recipient_address;
 
       if (!send.currency_choices ||
@@ -378,7 +369,7 @@ SendTab.prototype.angular = function (module)
         return;
       }
 
-      var currency = ripple.Currency.from_human(send.currency);
+      var currency = deprecated.Currency.from_human(send.currency);
       var matchedCurrency = currency.has_interest() ? currency.to_hex() : currency.get_iso();
       var match = /^([a-zA-Z0-9]{3}|[A-Fa-f0-9]{40})\b/.exec(matchedCurrency);
 
@@ -388,18 +379,7 @@ SendTab.prototype.angular = function (module)
         return;
       }
 
-      // Demurrage: Get a reference date five minutes in the future
-      //
-      // Normally, when using demurrage currencies, we would immediately round
-      // down (e.g. 0.99999 instead of 1) as demurrage occurs continuously. Not
-      // a good user experience.
-      //
-      // By choosing a date in the future, this gives us a time window before
-      // this rounding down occurs. Note that for positive interest currencies
-      // this actually *causes* the same odd rounding problem, so in the future
-      // we'll want a better solution, but for right now this does what we need.
-      var refDate = new Date(new Date().getTime() + 5 * 60000);
-      var amount = send.amount_feedback = ripple.Amount.from_human('' + send.amount + ' ' + matchedCurrency, { reference_date: refDate });
+      var amount = send.amount_feedback = deprecated.Amount.from_human('' + send.amount + ' ' + matchedCurrency);
 
       $scope.reset_amount_deps();
       send.path_status = 'waiting';
@@ -420,7 +400,7 @@ SendTab.prototype.angular = function (module)
         send.amount_feedback.set_issuer(1);
         pathUpdateTimeout = $timeout($scope.update_quote, 500);
       } else {
-        if (!RippleAddressCodec.isValidAddress(recipient) || !ripple.Amount.is_valid(amount)) {
+        if (!RippleAddressCodec.isValidClassicAddress(recipient) || !deprecated.Amount.is_valid(amount)) {
           // XXX Error?
           return;
         }
@@ -438,15 +418,15 @@ SendTab.prototype.angular = function (module)
         // Cannot make XRP payment if the sender does not have enough XRP
         send.sender_insufficient_xrp = send.amount_feedback.is_native()
           && $scope.account.max_spend
-          && $scope.account.max_spend.to_number() > 1
-          && $scope.account.max_spend.compareTo(send.amount_feedback) < 0;
+          && $scope.account.max_spend > 1
+          && $scope.account.max_spend < send.amount_feedback.to_number()/1000000;
 
-        var total = send.amount_feedback.add(send.recipient_info.Balance);
-        var reserve_base = $scope.account.reserve_base;
+        var total = send.amount_feedback.add(send.recipient_info.Balance * 1000000);
+        var reserve_base = deprecated.Amount.from_json($scope.account.reserve_base);
 
-        if ($scope.onlineMode && total.is_comparable(reserve_base) && total.compareTo(reserve_base) < 0) {
+        if (total.is_comparable(reserve_base) && total.compareTo(reserve_base) < 0) {
           send.fund_status = "insufficient-xrp";
-          send.xrp_deficiency = reserve_base.subtract(send.recipient_info.Balance);
+          send.xrp_deficiency = $scope.account.reserve_base - Number(send.recipient_info.Balance);
           send.insufficient = true;
           return;
         }
@@ -454,9 +434,7 @@ SendTab.prototype.angular = function (module)
         send.fund_status = 'none';
 
         send.path_status = 'pending';
-        if ($scope.onlineMode){
-          pathUpdateTimeout = $timeout($scope.update_paths, 500);
-        }
+        pathUpdateTimeout = $timeout($scope.update_paths, 500);
       }
     };
 
@@ -478,32 +456,23 @@ SendTab.prototype.angular = function (module)
 
       // Determine if we need to update the paths.
       if (send.pathfind &&
-      send.pathfind.src_account === $id.account &&
-      send.pathfind.dst_account === recipient &&
-      send.pathfind.dst_amount.equals(amount)) {
+          send.pathfind.src_account === $id.account &&
+          send.pathfind.dst_account === recipient &&
+          send.pathfind.dst_amount.equals(amount)) {
         return;
       }
+
+      send.pathfind = {
+        src_account: $id.account,
+        dst_account: recipient,
+        dst_amount: amount
+      };
 
       var isIssuer = $scope.generate_issuer_currencies();
 
       var lastUpdate;
-      // Start path find
-      var pf = $network.remote.createPathFind({
-        src_account: $id.account,
-        dst_account: recipient,
-        dst_amount: amount});
 
-      send.pathfind = pf;
-
-      pf.on('error', function() {
-        setImmediate(function () {
-          $scope.$apply(function () {
-            send.path_status = 'error';
-          });
-        });
-      });
-
-      pf.on('update', function(upd) {
+      var updatePath = function(upd) {
         $scope.$apply(function () {
           lastUpdate = new Date();
           clearInterval(timer);
@@ -536,19 +505,12 @@ SendTab.prototype.angular = function (module)
             $scope.send.alternatives = _.map(upd.alternatives, function (raw, key) {
               var alt = {};
 
-              alt.amount = Amount.from_json(raw.source_amount);
+              alt.amount = deprecated.Amount.from_json(raw.source_amount);
 
-              // Compensate for demurrage
-              //
-              // In the case of demurrage, the amount would immediately drop
-              // below where it is and because we currently always round down it
-              // would immediately show up as something like 0.99999.
-              var slightlyInFuture = new Date(+new Date() + 5 * 60000);
-
-              alt.rate = alt.amount.ratio_human(amount, {reference_date: slightlyInFuture});
+              alt.rate = alt.amount.ratio_human(amount);
 
               // Send max is 1.01 * amount
-              var scaleAmount = alt.amount.to_json();
+              var scaleAmount = { issuer: alt.amount._issuer };
               scaleAmount.value = 1.01;
               alt.send_max = alt.amount.scale(scaleAmount);
 
@@ -574,6 +536,21 @@ SendTab.prototype.angular = function (module)
             Array.prototype.unshift.apply($scope.send.alternatives, currentAlternatives);
           }
         });
+      };
+      // Start path find
+      $network.api.connection.on('path_find', updatePath);
+      $network.api.request('path_find', {
+        subcommand: 'create',
+        source_account: $id.account,
+        destination_account: recipient,
+        destination_amount: amount.to_json()
+      }).then(updatePath
+      ).catch(error => {
+        setImmediate(function () {
+          $scope.$apply(function () {
+            send.path_status = 'error';
+          });
+        });
       });
     };
 
@@ -598,7 +575,7 @@ SendTab.prototype.angular = function (module)
         recipient_prev: '',
         recipient_info: {},
         amount: '',
-        amount_prev: new Amount(),
+        amount_prev: new deprecated.Amount(),
         currency: $scope.xrp.name,
         currency_choices: [],
         currency_code: "XRP",
@@ -617,9 +594,7 @@ SendTab.prototype.angular = function (module)
       $scope.send.alt = null;
 
       // Force pathfinding reset
-      if ($scope.onlineMode) {
-        $scope.update_paths();
-      }
+      $scope.update_paths();
     };
 
     $scope.resetAddressForm = function() {
@@ -655,7 +630,7 @@ SendTab.prototype.angular = function (module)
       // submitting.
       // XXX ST: The confirmation page should warn you somehow once it becomes
       //         outdated.
-      $network.remote.closeCurrentPathFind();
+      $network.api.request('path_find', {subcommand: 'close'}).catch(error => {});
       $scope.mode = "confirm";
 
       $scope.send.secret = keychain.requestSecret($id.account);
@@ -665,10 +640,10 @@ SendTab.prototype.angular = function (module)
      * N4. Waiting for transaction result page
      */
 
-    $scope.onTransactionProposed = function (res, tx) {
+    $scope.onTransactionSubmit = function(res) {
       $scope.$apply(function () {
         $scope.setEngineStatus(res, false);
-        $scope.sent(tx.hash);
+        $scope.sent(res.tx_json.hash);
 
         // Remember currency and increase order
         var found;
@@ -692,65 +667,100 @@ SendTab.prototype.angular = function (module)
       });
     };
 
-    $scope.onTransactionSuccess = function (res, tx) {
+    $scope.onTransactionSuccess = function(res) {
       $scope.$apply(function () {
         $scope.setEngineStatus(res, true);
       });
     };
 
-    $scope.onTransactionError = function (res, tx) {
+    $scope.onTransactionError = function(res) {
       setImmediate(function () {
         $scope.$apply(function () {
           $scope.mode = "error";
 
           if (res.engine_result) {
             $scope.setEngineStatus(res);
-          } else if (res.error === 'remoteError') {
-            $scope.error_type = res.remote.error;
           } else {
             $scope.error_type = "unknown";
+            console.error(res);
           }
         });
       });
     };
 
     $scope.send_confirmed = function () {
-      var send = $scope.send;
-      var currency = $scope.send.currency.slice(0, 3).toUpperCase();
-      var amount = send.amount_feedback;
-      var address = $scope.send.recipient_address;
-
       $scope.mode = "sending";
 
-      amount.set_issuer(address);
+      var amount = $scope.send.amount_feedback;
 
-      var tx = $network.remote.transaction();
-      // Source tag
-      if ($scope.send.st) {
-        tx.sourceTag($scope.send.st);
+      // This should not happen. In case it happens, bail out immediately
+      // because RippleAPI doesn't support remote signing which has a build_path
+      // option that allows rippled to choose a path automatically.
+      //
+      // ripple-lib core library (existed prior to 0.13.0) supported enabling
+      // build_path on a transaction. See https://xrpl.org/sign.html for an
+      // explanation of build_path.
+      if (!amount.is_native() && !$scope.send.alt) {
+        $scope.mode = "error";
+        console.error("no path to send " + amount.to_json())
+        return;
       }
 
-      // Add memo to tx
-      tx.addMemo('client', 'rt' + $scope.version);
+      if (!$scope.send.secret) {
+        $scope.send.secret = keychain.requestSecret($id.account);
+      }
 
-      if (send.secret) {
-        tx.secret(send.secret);
-      } else {
-        // Get secret asynchronously
-        keychain.getSecret($id.account, $id.username, send.unlock_password,
-                           function (err, secret) {
-                             if (err) {
-                               console.log("client: send tab: error while " +
-                                           "unlocking wallet: ", err);
-                               $scope.mode = "error";
-                               $scope.error_type = "unlockFailed";
-                               return;
-                             }
+      // TODO(lezhang): dedup.
+      function toAmount(amount) {
+        if (amount.is_native()) {
+          return {
+            currency: 'drops',
+            value: amount.to_text()
+          }
+        } else {
+          return {
+            currency: amount.currency().get_iso(),
+            counterparty: amount.issuer(),
+            value: amount.to_text()
+          }
+        }
+      }
 
-                             send.secret = secret;
-                             $scope.send_confirmed();
-                           });
-        return;
+      var payment = {
+        source: {
+          address: $id.account,
+          maxAmount: toAmount(amount)
+        },
+        destination: {
+          address: $scope.send.recipient_address,
+          amount: toAmount(amount)
+        },
+        memos: [{
+          type: $network.api.convertStringToHex('client'),
+          format: $network.api.convertStringToHex('rt' + $scope.version)
+        }]
+      };
+
+      if ($scope.send.alt) {
+        payment.source.maxAmount = toAmount($scope.send.alt.send_max);
+        if ($scope.send.alt.paths.length) {
+          $scope.send.alt.paths.forEach(function(path) {
+            path.forEach(function(node){
+              // These two properties will be removed when serializing the
+              // transactions in RippleAPI. Not removing them here will cause
+              // error "Serialized transaction does not match original txJSON"
+              // when calling RippleAPI.sign().
+              delete node.type;
+              delete node.type_hex;
+            });
+          });
+          payment.paths = JSON.stringify($scope.send.alt.paths);
+        }
+      }
+
+      // Source tag
+      if ($scope.send.st) {
+        payment.source.tag = Number($scope.send.st);
       }
 
       // Destination tag
@@ -762,68 +772,19 @@ SendTab.prototype.angular = function (module)
       }
 
       if (dt) {
-        tx.destinationTag(+dt);
+        payment.destination.tag = Number(dt);
       }
 
       if ($scope.send.invoiceId) {
-        tx.setInvoiceID($scope.send.invoiceId);
+        payment.invoiceID = $scope.send.invoiceId;
       }
 
-      tx.payment($id.account, address, amount.to_json());
-
-      if ($scope.send.alt) {
-        tx.sendMax($scope.send.alt.send_max);
-        tx.paths($scope.send.alt.paths);
-      } else {
-        if ($scope.onlineMode && !amount.is_native()) {
-          tx.buildPath(true);
-        }
-      }
-
-      tx.on('success', function (res) {
-        $scope.onTransactionSuccess(res, tx);
-      });
-
-      tx.on('proposed', function (res) {
-        $scope.onTransactionProposed(res, tx);
-      });
-
-      tx.on('error', function (res) {
-        $scope.onTransactionError(res, tx);
-      });
-
-      var maxLedger = Options.tx_last_ledger || 3;
-
-      if ($scope.onlineMode) {
-        // TODO do we need this in offline mode?
-        tx.lastLedger($network.remote._ledger_current_index + maxLedger);
-        tx.submit();
-      }
-      else {
-        tx.tx_json.Sequence = Number($scope.sequence);
-        $scope.incrementSequence();
-        // Fee must be converted to drops
-        tx.tx_json.Fee = ripple.Amount.from_json(Options.max_tx_network_fee).to_human() * 1000000;
-        tx.complete();
-        $scope.signedTransaction = tx.sign().serialize().to_hex();
-        $scope.txJSON = JSON.stringify(tx.tx_json);
-        $scope.hash = tx.hash('HASH_TX_ID', false, undefined);
-        $scope.mode = "offlineSending";
-        var sequenceNumber = (Number(tx.tx_json.Sequence));
-        var sequenceLength = sequenceNumber.toString().length;
-        var txnName = $scope.userBlob.data.account_id + '-' + new Array(10 - sequenceLength + 1).join('0') + sequenceNumber + '.txt';
-        var txData = JSON.stringify({
-          tx_json: tx.tx_json,
-          hash: $scope.hash,
-          tx_blob: $scope.signedTransaction
-        });
-        if (!$scope.userBlob.data.defaultDirectory) {
-          $scope.fileInputClick(txnName, txData);
-        }
-        else {
-          $scope.saveToDisk(txnName, txData);
-        }
-      }
+      $network.api.preparePayment(
+        $id.account, payment, Tx.Instructions).then(prepared => {
+          return $network.submitTx(prepared, $scope.send.secret,
+            $scope.onTransactionSuccess, $scope.onTransactionError,
+            $scope.onTransactionSubmit);
+      }).catch(console.error);
 
       $scope.confirmedTime = new Date();
     };
@@ -833,13 +794,13 @@ SendTab.prototype.angular = function (module)
      */
     $scope.sent = function (hash) {
       $scope.mode = "status";
-      $network.remote.on('transaction', handleAccountEvent);
+      $network.api.connection.on('transaction', handleAccountEvent);
 
       function handleAccountEvent(e) {
         $scope.$apply(function () {
           if (e.transaction.hash === hash) {
             $scope.setEngineStatus(e, true);
-            $network.remote.removeListener('transaction', handleAccountEvent);
+            $network.api.connection.removeListener('transaction', handleAccountEvent);
           }
         });
       }
@@ -890,7 +851,7 @@ SendTab.prototype.angular = function (module)
 
     $scope.$on("$destroy", function() {
       // Stop pathfinding if the user leaves the tab
-      $network.remote.closeCurrentPathFind();
+      $network.api.request('path_find', {subcommand: 'close'}).catch(error => {});
     });
 
     $scope.reset();
@@ -900,7 +861,7 @@ SendTab.prototype.angular = function (module)
       if (amountValue === ("" + parseInt(amountValue, 10))) {
         amountValue = amountValue + '.0';
       }
-      var amount = ripple.Amount.from_json(amountValue);
+      var amount = deprecated.Amount.from_json(amountValue);
       var currency = amount.currency();
       if ($scope.currencies_all_keyed[currency.get_iso()]) {
         $scope.send.currency_choices = [currency.to_human({full_name:$scope.currencies_all_keyed[currency.get_iso()].name})];

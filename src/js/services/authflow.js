@@ -40,6 +40,7 @@ module.factory('rpAuthFlow', ['$rootScope', 'rpBlob',
      * @param {string} opts.password
      * @param {string} opts.account
      * @param {string} opts.masterkey
+     * @param {string} opts.regularkey
      * @param {string} opts.walletfile
      * @param {function} callback
      */
@@ -48,6 +49,7 @@ module.factory('rpAuthFlow', ['$rootScope', 'rpBlob',
         'account': opts.account,
         'password': opts.password,
         'masterkey': opts.masterkey,
+        'regularkey': opts.regularkey,
         'walletfile': opts.walletfile
       },
       function (err, blob) {

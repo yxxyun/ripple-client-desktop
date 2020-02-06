@@ -1,7 +1,7 @@
 {
   "main": "index.html",
   "name": "RippleAdminConsole",
-  "version": "1.4.0",
+  "version": "1.4.4",
   "description": "Ripple Admin Console",
   "single-instance": false,
   "window": {
@@ -11,6 +11,7 @@
     "height": 650,
     "min_width": 768,
     "min_height": 100,
-    "title": "Ripple Admin Console"
+    "title": "Ripple Admin Console",
+    "icon": "../img/mobile/icon196.png"
   }
 }

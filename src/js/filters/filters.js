@@ -1,13 +1,10 @@
 var module = angular.module('filters', []),
-    webutil = require('../util/web'),
-    Amount = ripple.Amount,
-    Currency = ripple.Currency,
-    Base = ripple.Base;
+    webutil = require('../util/web');
 
 var iso4217 = require('../data/iso4217');
 
 /**
- * Format a ripple.Amount.
+ * Format a deprecated.Amount.
  *
  * If the parameter is a number, the number is treated the relative
  */
@@ -35,7 +32,7 @@ module.filter('rpamount', function () {
       opts.reference_date = new Date();
     }
 
-    var amount = Amount.from_json(input);
+    var amount = deprecated.Amount.from_json(input);
     if (!amount.is_valid()) return "n/a";
 
     // Currency default precision
@@ -85,10 +82,10 @@ module.filter('rpcurrency', function () {
     if (!input) return "";
 
     var currency;
-    if (input instanceof Currency) {
+    if (input instanceof deprecated.Currency) {
       currency = input;
     } else {
-      var amount = Amount.from_json(input);
+      var amount = deprecated.Amount.from_json(input);
       currency = amount.currency();
     }
 
@@ -103,19 +100,19 @@ module.filter('rpissuer', function () {
   return function (input) {
     if (!input) return "";
 
-    var amount = Amount.from_json(input);
+    var amount = deprecated.Amount.from_json(input);
     return amount.issuer();
   };
 });
 
 /**
- * Get the full currency name from an Amount.
+ * Get the full currency name from an deprecated.Amount.
  */
 module.filter('rpcurrencyfull', ['$rootScope', function ($scope) {
   return function (input) {
     if (!input) return "";
 
-    var amount = Amount.from_json(input);
+    var amount = deprecated.Amount.from_json(input);
     var currency = $.grep($scope.currencies_all, function(e){ return e.value == amount.currency().to_human(); })[0];
 
     if (currency) {
@@ -132,9 +129,9 @@ module.filter('rpcurrencyfull', ['$rootScope', function ($scope) {
 module.filter('rpamountratio', function () {
   return function (numerator, denominator) {
     try {
-      return Amount.from_json(numerator).ratio_human(denominator, {reference_date: new Date()});
+      return deprecated.Amount.from_json(numerator).ratio_human(denominator, {reference_date: new Date()});
     } catch (err) {
-      return Amount.NaN();
+      return deprecated.Amount.NaN();
     }
   };
 });
@@ -145,11 +142,11 @@ module.filter('rpamountratio', function () {
 module.filter('rpamountadd', function () {
   return function (a, b) {
     try {
-      b = Amount.from_json(b);
+      b = deprecated.Amount.from_json(b);
       if (b.is_zero()) return a;
-      return Amount.from_json(a).add(b);
+      return deprecated.Amount.from_json(a).add(b);
     } catch (err) {
-      return Amount.NaN();
+      return deprecated.Amount.NaN();
     }
   };
 });
@@ -159,9 +156,9 @@ module.filter('rpamountadd', function () {
 module.filter('rpamountsubtract', function () {
   return function (a, b) {
     try {
-      return Amount.from_json(a).subtract(b);
+      return deprecated.Amount.from_json(a).subtract(b);
     } catch (err) {
-      return Amount.NaN();
+      return deprecated.Amount.NaN();
     }
   };
 });
@@ -336,7 +333,8 @@ module.filter('rprange', function() {
 
 module.filter('rpaddressorigin', function() {
   return function(recipient) {
-    return !isNaN(Base.decode_check([0, 5], recipient, 'bitcoin')) ? 'bitcoin' : 'ripple';
+    // TODO(r0bertz): figure out what this does
+    return !isNaN(deprecated.Base.decode_check([0, 5], recipient, 'bitcoin')) ? 'bitcoin' : 'ripple';
   };
 });
 

@@ -9,10 +9,8 @@ section.col-xs-12.content(ng-controller="LoginCtrl")
           a(href="", ng-click="mode='readOnly'") Read Only Mode
         li(ng-class="{active: mode=='coldwallet'}")
           a(href="", ng-click="mode='coldwallet'") Cold Wallet
-        li(ng-class="{active: mode=='submittxn'}")
-          a(href="#/submit", ng-click="mode='submittxn'") Submit Txn
         li(ng-class="{active: mode=='serversettings'}")
-          a(href="#/advanced", ng-click="mode='serversettings'") Server Settings  
+          a(href="#/advanced", ng-click="mode='serversettings'") Server Settings
 
   .row.auth-form-container(ng-show="mode=='open'")
     .col-md-offset-2.col-md-8
